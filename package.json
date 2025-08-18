@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "blast": "file:blast"
+  }
+}
