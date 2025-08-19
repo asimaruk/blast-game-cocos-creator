@@ -1,0 +1,53 @@
+name: "Deploy Github Pages"
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    name: Build and deploy game
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses : actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install dependencies
+        run: |
+          cd blast
+          npm i
+          npm run build
+          cd ..
+          npm i
+      - name: Cache CocosCreator
+        uses: actions/cache@v4
+        with:
+          path: CocosCreator_v2.4.15_20250328_mac.zip
+          key: CocosCreator_v2.4.15
+      - name: Download CocosCreator
+        run: wget -q -nc https://download.cocos.com/CocosCreator/v2.4.15/CocosCreator_v2.4.15_20250328_mac.zip
+      - name: Install CocosCreator
+        run: unzip -qq CocosCreator_v2.4.15_20250328_mac.zip
+      - name: Open CocosCreator
+        run: /usr/bin/open ./CocosCreator.app
+      - name: Build client
+        run: ./CocosCreator.app/Contents/MacOS/CocosCreator --path ${{ github.workspace }} --build "platform=web-mobile;debug=false;md5Cache=true;"
+      - name: Upload artifact
+        id: deployment
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/web-mobile
+  
+  deploy:
+    needs: build
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: macos-latest
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

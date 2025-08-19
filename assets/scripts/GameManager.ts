@@ -40,7 +40,7 @@ export default class GameManager extends cc.Component implements Game.GameListen
     loseTitle: cc.Node | null = null;
 
     private game: Game | null = null;
-    private tilePool = new cc.NodePool(Tile);
+    private tilePool = new cc.NodePool('Tile');
     private sparksPool = new cc.NodePool();
 
     protected onLoad(): void {
@@ -153,10 +153,10 @@ export default class GameManager extends cc.Component implements Game.GameListen
             return;
         }
 
-        if (this.game.getMovesLeft() > 0) {
-            this.game.pick(tilePosition.x, tilePosition.y);
-        } else {
+        if (this.game.isGameOver()) {
             this.restart();
+        } else {
+            this.game.pick(tilePosition.x, tilePosition.y);
         }
     }
 
