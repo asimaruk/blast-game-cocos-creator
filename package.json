@@ -1,5 +1,5 @@
 {
   "dependencies": {
-    "blast": "file:blast"
+    "blast": "file:blast-core"
   }
 }

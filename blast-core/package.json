@@ -1,5 +1,5 @@
 {
-  "name": "blast",
+  "name": "blast-core",
   "version": "1.0.0",
   "description": "Blast game logic",
   "main": "dist/index.js",
