@@ -1,4 +1,4 @@
-import { getAffectedPositions } from "../dist/utils-game";
+import { getAffectedPositions } from "../src/utils-game";
 import { TileKind } from "../src/Tile";
 import { DefaultTileField, TestDefaultTileField } from "../src/TileField";
 import { fallTiles, findTouchingTiles, generateNewTiles, hasMoves } from "../src/utils-game";
@@ -157,6 +157,8 @@ describe('fallTiles', () => {
 });
 
 describe('generateNewTiles', () => {
+    const colors = ['red', 'green', 'blue', 'purple', 'yellow'];
+    const randomTile = () => colors[Math.floor(Math.random() * colors.length)];
     it('generate for empty', () => {
         const field = new TestDefaultTileField(4, 4, [
             'red'   , 'empty' , 'green' , 'purple',
@@ -164,7 +166,7 @@ describe('generateNewTiles', () => {
             'empty' , 'empty' , 'red'   , 'yellow',
             'purple', 'blue'  , 'empty' , 'red'   ,
         ]);
-        generateNewTiles(field);
+        generateNewTiles(field, randomTile);
         expect(field.tiles_).not.toContain('empty' satisfies TileKind);
     });
 });
@@ -175,7 +177,7 @@ describe('hasMoves', () => {
             'red'   , 'red'  ,
             'yellow', 'green',
         ]);
-        const isHasMoves = hasMoves(field);
+        const isHasMoves = hasMoves(field, () => false);
         expect(isHasMoves).toBeTruthy();
     });
 
@@ -184,14 +186,21 @@ describe('hasMoves', () => {
             'red'   , 'blue'  ,
             'yellow', 'green',
         ]);
-        const isHasMoves = hasMoves(field);
+        const isHasMoves = hasMoves(field, () => false);
         expect(isHasMoves).toBeFalsy();
     });
 });
 
 describe('getAffectedPositions', () => {
     it ('Raw affected positions', () => {
-        const affected = getAffectedPositions(5, 3, 'burn_raw', 10, 10);
+        const affected = getAffectedPositions(5, 3, 10, 10, [
+            { 
+                id: 'burn', 
+                burns: [
+                    [{x: 'e', y: 0}, {x: 'e', y: 0}]
+                ]
+            }
+        ]);
         expect(affected).toEqual(expect.arrayContaining([
             { x: 0, y: 3 },
             { x: 1, y: 3 },
@@ -206,7 +215,14 @@ describe('getAffectedPositions', () => {
     });
 
     it ('Column affected positions', () => {
-        const affected = getAffectedPositions(5, 3, 'burn_column', 10, 10);
+        const affected = getAffectedPositions(5, 3, 10, 10, [
+            { 
+                id: 'burn', 
+                burns: [
+                    [{x: 0, y: 'e'}, {x: 0, y: 'e'}]
+                ]
+            }
+        ]);
         expect(affected).toEqual(expect.arrayContaining([
             { x: 5, y: 0 },
             { x: 5, y: 1 },
@@ -221,7 +237,14 @@ describe('getAffectedPositions', () => {
     });
 
     it ('Around affected positions', () => {
-        const affected = getAffectedPositions(5, 3, 'burn_around', 10, 10);
+        const affected = getAffectedPositions(5, 3, 10, 10, [
+            { 
+                id: 'burn', 
+                burns: [
+                    [{x: -1, y: -1}, {x: 1, y: 1}]
+                ]
+            }
+        ]);
         expect(affected).toEqual(expect.arrayContaining([
             { x: 4, y: 2 },
             { x: 5, y: 2 },
@@ -235,7 +258,14 @@ describe('getAffectedPositions', () => {
     });
 
     it ('All affected positions', () => {
-        const affected = getAffectedPositions(5, 3, 'burn_all', 10, 10);
+        const affected = getAffectedPositions(5, 3, 10, 10, [
+            { 
+                id: 'burn', 
+                burns: [
+                    [{x: 'e', y: 'e'}, {x: 'e', y: 'e'}]
+                ]
+            }
+        ]);
         const testAffected = Array.from({ length: 100 }, (_, i) => {
             const x = i % 10;
             const y = Math.floor(i / 10);

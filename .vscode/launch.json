@@ -15,7 +15,7 @@
             ],
             "console": "integratedTerminal",
             "internalConsoleOptions": "neverOpen",
-            "cwd": "${workspaceFolder}/blast"
+            "cwd": "${workspaceFolder}/blast-core"
         }
     ]
 }

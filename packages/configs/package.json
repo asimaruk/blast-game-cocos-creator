@@ -1,0 +1,7 @@
+{
+  "name": "configs",
+  "version": "0.0.1",
+  "description": "Copy configs to build destination",
+  "author": "Aleksandr Sakharuk",
+  "main": "main.js"
+}

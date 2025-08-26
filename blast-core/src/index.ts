@@ -1,27 +1,15 @@
 import { Game } from "./Game";
-import { 
-    TileColor, 
-    TileSuper, 
-    TileKind, 
-    isColorTile, 
-    isSuperTile, 
-    TilePosition,
-    NotEmptyTilePosition,
-    Position,
-} from "./Tile";
+import { TileKind } from "./Tile";
+import { TileFactory } from "./TileFactory";
 import { TileField } from "./TileField";
+import { UtilityConfig } from "./UtilityConfig";
 
 export { 
-    Game, 
-    isColorTile, 
-    isSuperTile,
+    TileFactory,
+    Game,
+    UtilityConfig,
 };
-export type { 
-    TileColor, 
-    TileSuper, 
+export type {
     TileKind, 
-    TileField, 
-    TilePosition,
-    NotEmptyTilePosition,
-    Position,
+    TileField,
 };

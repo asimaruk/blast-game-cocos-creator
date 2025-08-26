@@ -1,0 +1,11 @@
+{
+    "red": "block_red",
+    "green": "block_green",
+    "blue": "block_blue",
+    "purple": "block_purpure",
+    "yellow": "block_yellow",
+    "burn_row": "block_rockets_horisontal",
+    "burn_column": "block_rakets",
+    "burn_around": "block_bomb",
+    "burn_all": "block_bomb_max"
+}

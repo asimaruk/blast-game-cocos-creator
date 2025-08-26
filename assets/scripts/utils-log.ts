@@ -17,3 +17,13 @@ export function warn(message?: any, ...optionalParams: any[]): void {
         }
     }
 }
+
+export function error(message?: any, ...optionalParams: any[]): void {
+    if (CC_DEBUG) {
+        if (optionalParams.length === 0) {
+            console.error(message);
+        } else {
+            console.error(message, optionalParams);
+        }
+    }
+}

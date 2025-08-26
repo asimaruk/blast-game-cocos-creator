@@ -1,5 +1,4 @@
 import { TileKind } from "./Tile";
-import { createRandomColorTile } from "./utils-game";
 
 export interface TileField {
     readonly width: number;
@@ -9,18 +8,12 @@ export interface TileField {
 }
 
 export class DefaultTileField implements TileField {
-    private tiles: TileKind[];
 
     constructor(
         public readonly width: number, 
         public readonly height: number,
-        tiles: TileKind[] = [],
-    ) {
-        this.tiles = tiles;
-        for (let i = tiles.length; i < width * height; i++) {
-            tiles.push(createRandomColorTile());
-        }
-    }
+        private tiles: TileKind[],
+    ) {}
 
     public getTile(x: number, y: number): TileKind | undefined {
         if (x < 0 || y < 0 || x > this.width - 1 || y > this.height - 1) {
@@ -35,8 +28,6 @@ export class DefaultTileField implements TileField {
          }
          this.tiles[y * this.width + x] = kind;
     }
-
-    
 }
 
 export class TestDefaultTileField extends DefaultTileField {

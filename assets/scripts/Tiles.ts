@@ -1,7 +1,6 @@
 import { Tile } from "./Tile";
-import { log } from "./utils-log";
 
-const { ccclass, property } = cc._decorator;
+const { ccclass } = cc._decorator;
 
 @ccclass
 export class Tiles extends cc.Component {
@@ -53,6 +52,10 @@ export class Tiles extends cc.Component {
                 return true;
             }
         }).reverse()[0];
+    }
+
+    getAllChildTiles(): cc.Node[] {
+        return this.node.children.filter(c => c.getComponent(Tile) !== null);
     }
 
     queueTweens(...tweens: cc.Tween[]) {

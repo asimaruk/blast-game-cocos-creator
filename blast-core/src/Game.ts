@@ -1,19 +1,15 @@
-import { 
-    isColorTile,
-    isSuperTile,
-    Position,
-    TileColor,
+import {
     TileKind,
-    TileSuper, 
-    TilePosition,
-    NotEmptyTilePosition,
+    EMPTY_TILE,
+    isTileKind,
 } from "./Tile";
+import { TileFactory } from "./TileFactory";
 import { 
     DefaultTileField, 
     TileField, 
 } from "./TileField";
+import { UtilityConfig } from "./UtilityConfig";
 import {
-    createRandomSuperTile,
     fallTiles, 
     findTouchingTiles, 
     generateNewTiles,
@@ -26,11 +22,21 @@ export class Game {
     private score = 0;
     private movesLeft = 0;
     private gameListeners: Game.GameListener[] = [];
+    private tileField: TileField;
+    private config: UtilityConfig;
 
     constructor(
-        private config: Game.Config,
-        private tileField: TileField = new DefaultTileField(config.width, config.height),
+        config: Game.Config,
+        private tileFactory: TileFactory,
+        tileField?: TileField,
     ) {
+        this.config = new UtilityConfig(config);
+        this.tileField = tileField 
+                      ?? new DefaultTileField(
+                        config.width,
+                        config.height,
+                        tileFactory.createRandomColors(config.width * config.height),
+                      )
         this.onRestart();
     }
 
@@ -44,9 +50,9 @@ export class Game {
         }
 
         const tile = this.tileField.getTile(x, y);
-        if (isColorTile(tile)) {
+        if (this.config.isColorTile(tile)) {
             this.onColorPick(x, y, tile);
-        } else if (isSuperTile(tile)) {
+        } else if (this.config.isSuperTile(tile)) {
             this.onSuperPick(x, y, tile);
         } else {
             throw new Error(`${tile} tile at {${x}; ${y}}`);
@@ -60,7 +66,7 @@ export class Game {
             });
         }
 
-        const gens = generateNewTiles(this.tileField);
+        const gens = generateNewTiles(this.tileField, () => this.tileFactory.createRandomColorTile());
         if (gens.length > 0) {
             this.emitEvent({
                 id: 'appear',
@@ -73,13 +79,17 @@ export class Game {
 
     public restart(cfg?: Game.Config) {
         if (cfg) {
-            this.config = cfg;
+            this.config = new UtilityConfig(cfg);
         }
-        this.tileField = new DefaultTileField(this.config.width, this.config.height);
+        this.tileField = new DefaultTileField(
+            this.config.config.width, 
+            this.config.config.height,
+            this.tileFactory.createRandomColors(this.config.config.width * this.config.config.height),
+        );
         this.onRestart();
         this.emitEvent({
             id: 'restart',
-            config: this.config,
+            config: this.config.config,
         });
     }
 
@@ -109,23 +119,23 @@ export class Game {
     }
 
     public isGameOver() {
-        return this.movesLeft === 0 || !hasMoves(this.tileField);
+        return this.movesLeft === 0 || !hasMoves(this.tileField, (t: TileKind) => this.config.isSuperTile(t));
     }
 
     public getWidth(): number {
-        return this.config.width;
+        return this.config.config.width;
     }
 
     public getHeight(): number {
-        return this.config.height;
+        return this.config.config.height;
     }
 
     private onRestart() {
         this.score = 0;
-        this.movesLeft = this.config.moves;
+        this.movesLeft = this.config.config.moves;
     }
     
-    private onColorPick(x: number, y: number, tile: TileColor) {
+    private onColorPick(x: number, y: number, tile: TileKind) {
         const touchingPositions = findTouchingTiles(this.tileField, x, y, tile);
         if (touchingPositions.length === 1) {
             return;
@@ -141,8 +151,8 @@ export class Game {
             movesLeft: this.movesLeft,
         });
 
-        if (touchingPositions.length >= this.config.countToSuper) {
-            const randomSuper = createRandomSuperTile();
+        if (touchingPositions.length >= this.config.config.countToSuper) {
+            const randomSuper = this.tileFactory.createRandomSuperTile();
             this.tileField.setTile(x, y, randomSuper);
             this.emitEvent({
                 id: 'appear',
@@ -159,12 +169,12 @@ export class Game {
         this.burnTiles(touchingPositions);
     }
 
-    private onSuperPick(x: number, y: number, tile: TileSuper) {
-        const burnPositions: Position[] = [];
-        const superTiles: TilePosition[] = [{ x, y, tile }];
+    private onSuperPick(x: number, y: number, tile: TileKind) {
+        const burnPositions: Game.Position[] = [];
+        const superTiles:Game.TilePosition[] = [{ x, y, tile }];
         for (let i = 0; i < superTiles.length; i++) {
             const superTile = superTiles[i];
-            if (!isSuperTile(superTile?.tile)) {
+            if (!this.config.isSuperTile(superTile?.tile)) {
                 throw new Error('Super tile should be super');
             }
             this.useSuperTile(superTile.x, superTile.y, superTile.tile, burnPositions, superTiles);
@@ -187,24 +197,24 @@ export class Game {
     private useSuperTile(
         x: number, 
         y: number, 
-        superTile: TileSuper, 
-        outBurnPositions: Position[], 
-        outSuperTiles: TilePosition[],
+        superTile: TileKind, 
+        outBurnPositions: Game.Position[], 
+        outSuperTiles: Game.TilePosition[],
     ) {
         const affectedPositions = getAffectedPositions(
             x, 
             y, 
-            superTile, 
-            this.config.width, 
-            this.config.height,
+            this.config.config.width, 
+            this.config.config.height,
+            this.config.config.superActions[superTile] ?? [],
         );
         for (const p of affectedPositions) {
             const tile = this.getTile(p.x, p.y);
             const isUnknownColorTile = outBurnPositions.findIndex(bp => bp.x === p.x && bp.y === p.y) === -1;
             const isUnknownSuperTile = outSuperTiles.findIndex(t => t.x === p.x && t.y === p.y) === -1;
-            if (isColorTile(tile) && isUnknownColorTile) {
+            if (this.config.isColorTile(tile) && isUnknownColorTile) {
                 outBurnPositions.push({ x: p.x, y: p.y });
-            } else if (isSuperTile(tile) && isUnknownSuperTile) {
+            } else if (this.config.isSuperTile(tile) && isUnknownSuperTile) {
                 outSuperTiles.push({ x: p.x, y: p.y, tile: tile });
             }
         }
@@ -213,9 +223,9 @@ export class Game {
     private checkWinOrLose() {
         if (this.movesLeft === 0) {
             this.emitEvent({
-                id: this.score >= this.config.winScore ? 'win' : 'lose'
+                id: this.score >= this.config.config.winScore ? 'win' : 'lose'
             });
-        } else if (!hasMoves(this.tileField)) {
+        } else if (!hasMoves(this.tileField, (t) => this.config.isSuperTile(t))) {
             this.emitEvent({ id: 'lose' });
         }
     }
@@ -226,14 +236,58 @@ export class Game {
         }
     }
 
-    private burnTiles(burnPositions: Position[]) {
+    private burnTiles(burnPositions: Game.Position[]) {
         for (const bp of burnPositions) {
-            this.tileField.setTile(bp.x, bp.y, 'empty');
+            this.tileField.setTile(bp.x, bp.y, EMPTY_TILE);
         }
     }
 }
 
 export namespace Game {
+
+    export type Position = {
+        x: number,
+        y: number,
+    };
+
+    export function isPosition(obj: unknown): obj is Position {
+        if (typeof obj !== 'object' || obj === null) {
+            return false;
+        }
+
+        return 'x' in obj
+            && typeof obj.x === 'number'
+            && 'y' in obj
+            && typeof obj.y === 'number';
+    }
+
+    export type TilePosition = { tile: TileKind } & Position;
+
+    export function isTilePosition(obj: unknown): obj is Position {
+        if (typeof obj !== 'object' || obj === null) {
+            return false;
+        }
+
+        return isPosition(obj)
+            && 'tile' in obj
+            && isTileKind(obj.tile);
+    }
+
+    export type RangePosition = {
+        x: number | 'e',
+        y : number | 'e',
+    }
+
+    export function isRangePosition(obj: unknown): obj is Position {
+        if (typeof obj !== 'object' || obj === null) {
+            return false;
+        }
+
+        return 'x' in obj
+            && (typeof obj.x === 'number' || obj.x === 'e')
+            && 'y' in obj
+            && (typeof obj.y === 'number' || obj.y === 'e');
+    }
 
     type GameStats = {
         score: number,
@@ -256,7 +310,7 @@ export namespace Game {
     };
     type AppearEvent = {
         id: 'appear',
-        tiles: NotEmptyTilePosition[],
+        tiles: TilePosition[],
     };
     type BurnEvent = {
         id: 'burn',
@@ -281,11 +335,43 @@ export namespace Game {
         onGameEvent(event: Event): void;
     }
 
+    export type BurnAction = {
+        id: 'burn',
+        burns: (Position | [RangePosition, RangePosition])[],
+    }
+
+    function isBurnAction(obj: unknown): obj is BurnAction {
+        if (typeof obj !== 'object' || obj === null) {
+            return false;
+        }
+
+        return 'id' in obj
+            && obj.id === 'burn'
+            && 'burns' in obj
+            && Array.isArray(obj.burns)
+            && obj.burns.every(b => {
+                return isPosition(b)
+                    || Array.isArray(b)
+                    && b.length === 2
+                    && isRangePosition(b[0])
+                    && isRangePosition(b[1]); 
+            });
+    }
+
+    export type Action = BurnAction
+                        ;
+
+    export function isAction(obj: unknown): obj is Action {
+        return isBurnAction(obj);
+    }
+
     export type Config = {
         readonly width: number,
         readonly height: number,
         readonly moves: number,
         readonly winScore: number,
         readonly countToSuper: number,
+        readonly colors: TileKind[],
+        readonly superActions: {[key: TileKind]: Action[]},
     }
 }

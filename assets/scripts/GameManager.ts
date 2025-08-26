@@ -1,14 +1,11 @@
-const {ccclass, property} = cc._decorator;
+const { ccclass, property, requireComponent } = cc._decorator;
 import { 
-    Game, 
-    isColorTile, 
-    isSuperTile,
-    Position,
-} from "blast";
+    Game,
+    TileFactory as GameTileFactory,
+} from "blast-core";
 import { Tiles } from "./Tiles";
 import { Tile } from "./Tile";
-import { getTileSprite } from "./utils-atlas";
-import { log } from "./utils-log";
+import { error, log } from "./utils-log";
 import { 
     tweenScaleOut, 
     tweenTileBlast, 
@@ -16,8 +13,15 @@ import {
     tweenMove,
     tweenFadeIn, 
 } from "./tweens";
+import { 
+    Config, 
+    DEFAULT_GAME_CONFIG, 
+    DEFAULT_SPRITES,
+} from "./Config";
+import TileFactory from "./TileFactory";
 
 @ccclass
+@requireComponent(TileFactory)
 export default class GameManager extends cc.Component implements Game.GameListener {
 
     @property(cc.Label)
@@ -29,33 +33,39 @@ export default class GameManager extends cc.Component implements Game.GameListen
     @property(Tiles)
     tiles: Tiles | null = null;
     @property(cc.Prefab)
-    tilePrefab: cc.Prefab | null = null;
-    @property(cc.Prefab)
     sparksPrefab: cc.Prefab | null = null;
-    @property(cc.SpriteAtlas)
-    tilesAtlas: cc.SpriteAtlas | null = null;
     @property(cc.Node)
     winTitle: cc.Node | null = null;
     @property(cc.Node)
     loseTitle: cc.Node | null = null;
 
     private game: Game | null = null;
-    private tilePool = new cc.NodePool('Tile');
     private sparksPool = new cc.NodePool();
+    private tileFactory: TileFactory = null!;
 
     protected onLoad(): void {
-        const config = {
-            width: 10,
-            height: 11,
-            moves: 30,
-            winScore: 500,
-            countToSuper: 6,
-        };
-        this.game = new Game(config);
+        const extGameConfig = cc.game.config['gameConfig'];
+        log(extGameConfig);
+        if (!Config.isConfig(extGameConfig)) {
+            error('Game config invalid');
+        }
+        const config: Config = Config.isConfig(extGameConfig) 
+                     ? extGameConfig 
+                     : {
+                        game: DEFAULT_GAME_CONFIG,
+                        sprites: DEFAULT_SPRITES,
+                     };
+        const tilesFactory = new GameTileFactory(
+            config.game.colors, 
+            Object.keys(config.game.superActions),
+        );
+        this.game = new Game(config.game, tilesFactory);
         this.game.addGameListener(this);
         this.tiles?.node.on(Tiles.EventType.TILES_CLICK, this.onTilesClick, this);
+        this.tileFactory = this.getComponent(TileFactory);
+        this.tileFactory.setupSpritesConfig(config.sprites);
 
-        this.onRestart(config, true);
+        this.onRestart(config.game, true);
     }
 
     protected onDestroy(): void {
@@ -92,58 +102,69 @@ export default class GameManager extends cc.Component implements Game.GameListen
     }
 
     private onRestart(config: Game.Config, isFirstTime: boolean = false) {
-        if (this.tiles && this.tilesAtlas) {
-            this.tiles.resize(config.width, config.height);
+        this.resizeTiles(config.width, config.height);
+        if (!isFirstTime) {
+            this.appearAllTiles();
+        }
+        this.setWinScore(config.winScore);
+        this.setScore(0);
+        this.setMoves(config.moves);
+        this.hideGameOverTitle(this.winTitle, isFirstTime);
+        this.hideGameOverTitle(this.loseTitle, isFirstTime);
+    }
 
-            const tweens: cc.Tween[] = [];
-            for (let x = 0; x < config.width; x++) {
-                for (let y = 0; y < config.height; y++) {
-                    const tile = this.game?.getTile(x, y);
-                    if (tile === undefined || !(isColorTile(tile) || isSuperTile(tile))) {
-                        continue;
-                    }
-                    const tileNode = this.getTile({ sprite: getTileSprite(this.tilesAtlas, tile) });
-                    this.tiles.addTile(tileNode);
-                    tileNode.setPosition(this.tiles.getNodePosition(x, y));
-                    if (!isFirstTime) {
-                        const tween = tweenScaleOut(tileNode);
-                        tweens.push(tween);
-                    }
+    private resizeTiles(
+        width: number, 
+        height: number,
+    ) {
+        if (!this.tiles) {
+            return;
+        }
+
+        this.tiles.resize(width, height);
+        for (let x = 0; x < width; x++) {
+            for (let y = 0; y < height; y++) {
+                const tile = this.game?.getTile(x, y);
+                if (!tile) {
+                    continue;
                 }
-            }
-            if (!isFirstTime && tweens.length > 0) {
-                this.tiles?.queueTweens(...tweens);
-            }
-        }
-        if (this.winScore) {
-            this.winScore.string = `${config.winScore}`;
-        }
-        this.updateScore(0, config.moves);
-        if (this.winTitle) {
-            if (isFirstTime) {
-                this.winTitle.active = false;
-            } else if (this.winTitle.active) {
-                tweenFadeOut(this.winTitle)
-                    .call(() => {
-                        if (this.winTitle) {
-                            this.winTitle.active = false;
-                        }
-                    })
-                    .start();
+                const tileNode = this.tileFactory.getTile(tile);
+                this.tiles.addTile(tileNode);
+                tileNode.setPosition(this.tiles.getNodePosition(x, y));
             }
         }
-        if (this.loseTitle) {
-            if (isFirstTime) {
-                this.loseTitle.active = false;
-            } else if (this.loseTitle.active) {
-                tweenFadeOut(this.loseTitle)
-                    .call(() => {
-                        if (this.loseTitle) {
-                            this.loseTitle.active = false;
-                        }
-                    })
-                    .start();
-            }
+    }
+
+    private appearAllTiles() {
+        const tweens: cc.Tween[] = [];
+        for (const t of this.tiles?.getAllChildTiles() ?? []) {
+            tweens.push(tweenScaleOut(t));
+        }
+        this.tiles?.queueTweens(...tweens);
+    }
+
+    private setWinScore(winScore: number) {
+        if (!this.winScore) {
+            return;
+        }
+
+        this.winScore.string = `${winScore}`;
+    }
+
+    private hideGameOverTitle(
+        title: cc.Node | null,
+        isFirstTime: boolean,
+    ) {
+        if (!title) {
+            return;
+        }
+
+        if (isFirstTime) {
+            title.active = false;
+        } else if (title.active) {
+            tweenFadeOut(title)
+                .call(() => title.active = false)
+                .start();
         }
     }
 
@@ -162,7 +183,8 @@ export default class GameManager extends cc.Component implements Game.GameListen
 
     private onGameBlastEvent(event: Extract<Game.Event, { id: 'blast' }>) {
         log('Game: blast', event);
-        this.updateScore(event.score, event.movesLeft);
+        this.setScore(event.score);
+        this.setMoves(event.movesLeft)
         this.blastTiles(event.positions);
     }
 
@@ -186,12 +208,12 @@ export default class GameManager extends cc.Component implements Game.GameListen
 
     private onGameAppearEvent(event: Extract<Game.Event, { id: 'appear'}>) {
         log('Game: appear', event);
-        if (!this.tilesAtlas || !this.tiles) {
+        if (!this.tiles) {
             return;
         }
         const tweens: cc.Tween[] = [];
         for (const aptile of event.tiles) {
-            const tileNode = this.getTile({ sprite: getTileSprite(this.tilesAtlas, aptile.tile) });
+            const tileNode = this.tileFactory.getTile(aptile.tile);
             this.tiles.addTile(tileNode);
             const nodePos = this.tiles.getNodePosition(aptile.x, aptile.y);
             tileNode.setPosition(nodePos);
@@ -203,7 +225,8 @@ export default class GameManager extends cc.Component implements Game.GameListen
 
     private onGameBurnEvent(event: Extract<Game.Event, { id: 'burn' }>) {
         log('Game: burn', event);
-        this.updateScore(event.score, event.movesLeft);
+        this.setScore(event.score);
+        this.setMoves(event.movesLeft)
         this.blastTiles(event.burnPositions.concat(event.superTiles));
     }
 
@@ -216,7 +239,7 @@ export default class GameManager extends cc.Component implements Game.GameListen
             }
             const tween = tweenFadeOut(tileNode)
                 .call(() => {
-                    this.tilePool.put(tileNode);
+                    this.tileFactory.put(tileNode);
                 });
             tweens.push(tween);
         });
@@ -232,18 +255,7 @@ export default class GameManager extends cc.Component implements Game.GameListen
         this.onRestart(event.config);
     }
 
-    private getTile(tileConfig: Tile.TileOptions): cc.Node {
-        return this.tilePool.get(tileConfig) || this.createTile(tileConfig);
-    }
-
-    private createTile(tileConfig: Tile.TileOptions): cc.Node {
-        if (this.tilePrefab === null) {
-            throw new Error('Tile prefab is not set');
-        }
-        const n = cc.instantiate(this.tilePrefab);
-        n.getComponent(Tile)?.setOptions(tileConfig);
-        return n;
-    }
+    
 
     private getSparks(): cc.ParticleSystem {
         if (this.sparksPrefab === null) {
@@ -259,16 +271,19 @@ export default class GameManager extends cc.Component implements Game.GameListen
         return particles;
     }
 
-    private updateScore(score: number, moves: number) {
+    private setScore(score: number) {
         if (this.score) {
             this.score.string = `${score}`;
         }
+    }
+
+    private setMoves(moves: number) {
         if (this.moves) {
             this.moves.string = `${moves}`;
         }
     }
 
-    private blastTiles(tilelPositions: Position[]) {
+    private blastTiles(tilelPositions: Game.Position[]) {
         const blastTiles = tilelPositions.map(p => this.tiles?.getChildTile(p.x, p.y)).filter(t => t !== undefined);
         const tweens: cc.Tween[] = [];
         for (const t of blastTiles) {
@@ -288,7 +303,7 @@ export default class GameManager extends cc.Component implements Game.GameListen
                 }
             )
             .call(() => {
-                this.tilePool.put(t);
+                this.tileFactory.put(t);
             });
             tweens.push(tween);
         }

@@ -5,12 +5,12 @@ import {
     xit,
 } from '@jest/globals';
 import { 
-    Game, 
-    isColorTile as color, 
-    isSuperTile as supar,
+    Game,
     TileKind, 
 } from '../src';
 import { DefaultTileField } from '../src/TileField';
+import { TileFactory } from '../src/TileFactory';
+import { UtilityConfig } from '../src/UtilityConfig';
 
 type SyncExpectationResult = { pass: boolean, message: () => string };
 type ExpectationResult =
@@ -71,6 +71,49 @@ function getGameTiles(game: Game): TileKind[] {
     return tiles;
 }
 
+const DEFAULT_CONFIG: Game.Config = {
+    width: 10,
+    height: 10,
+    moves: 30,
+    winScore: 500,
+    countToSuper: 6,
+    colors: ['red', 'green', 'blue', 'purple', 'yellow'],
+    superActions: {
+        burn_row: [
+            { 
+                id: 'burn', 
+                burns: [
+                    [{x: 'e', y: 0}, {x: 'e', y: 0}]
+                ]
+            }
+        ],
+        burn_column: [
+            { 
+                id: 'burn', 
+                burns: [
+                    [{x: 0, y: 'e'}, {x: 0, y: 'e'}]
+                ]
+            }
+        ],
+        burn_around: [
+            { 
+                id: 'burn', 
+                burns: [
+                    [{x: -1, y: -1}, {x: 1, y: 1}]
+                ]
+            }
+        ],
+        burn_all: [
+            { 
+                id: 'burn', 
+                burns: [
+                    [{x: 'e', y: 'e'}, {x: 'e', y: 'e'}]
+                ]
+            }
+        ]
+    }
+}
+
 describe('Game', () => {
     it('Burn decrements moves left', () => {
         const field = new DefaultTileField(2, 2, [
@@ -79,12 +122,13 @@ describe('Game', () => {
         ]);
         const game = new Game(
             {
+                ...DEFAULT_CONFIG,
                 width: 4,
                 height: 4,
                 moves: 10,
                 winScore: 999,
-                countToSuper: 6,
             },
+            new TileFactory(DEFAULT_CONFIG.colors, Object.keys(DEFAULT_CONFIG.superActions)),
             field,
         );
         game.pick(0, 0);
@@ -98,12 +142,14 @@ describe('Game', () => {
         ]);
         const game = new Game(
             {
+                ...DEFAULT_CONFIG,
                 width: 4,
                 height: 4,
                 moves: 10,
                 winScore: 999,
                 countToSuper: 6,
             },
+            new TileFactory(DEFAULT_CONFIG.colors, Object.keys(DEFAULT_CONFIG.superActions)),
             field,
         );
         game.pick(0, 1);
@@ -111,45 +157,50 @@ describe('Game', () => {
     });
 
     it('No moves no pick', () => {
-        const field = new DefaultTileField(2, 2, [
-            'red'  , 'red',
-            'blue' , 'red',
+        const field = new DefaultTileField(3, 3, [
+            'green', 'red'   , 'blue',
+            'blue' , 'yellow', 'blue',
+            'blue' , 'purple', 'blue',
         ]);
         const game = new Game(
             {
+                ...DEFAULT_CONFIG,
                 width: 4,
                 height: 4,
-                moves: 0,
+                moves: 1,
                 winScore: 999,
                 countToSuper: 6,
             },
+            new TileFactory(DEFAULT_CONFIG.colors, Object.keys(DEFAULT_CONFIG.superActions)),
             field,
         );
-        game.pick(0, 0);
+        game.pick(2, 0);
+        game.pick(0, 1);
         expect(game.getMovesLeft()).toBe(0);
-        expect(getGameTiles(game)).toEqual([
-            'red'  , 'red',
-            'blue' , 'red',
-        ]);
+        expect(game.getScore()).toBe(3);
     });
 
     it('Pick horizontal rockets', () => {
         const field = new DefaultTileField(3, 3, [
             'red'  , 'red'   , 'red',
-            'blue' , 'yellow', 'burn_raw',
+            'blue' , 'yellow', 'burn_row',
             'green', 'green' , 'green'
         ]);
+        const utilConfig = new UtilityConfig({
+            ...DEFAULT_CONFIG,
+            width: field.width,
+            height: field.height,
+            moves: 10,
+            winScore: 999,
+            countToSuper: 6,
+        });
         const game = new Game(
-            {
-                width: field.width,
-                height: field.height,
-                moves: 10,
-                winScore: 999,
-                countToSuper: 6,
-            },
+            utilConfig.config,
+            new TileFactory(DEFAULT_CONFIG.colors, Object.keys(DEFAULT_CONFIG.superActions)),
             field,
         );
         game.pick(2, 1);
+        const color = (t: TileKind) => utilConfig.isColorTile(t);
         expect(getGameTiles(game)).toEqualWithTileRules([
             'red'  , 'red'  , 'red'  ,
             'green', 'green', 'green',
@@ -163,17 +214,21 @@ describe('Game', () => {
             'blue' , 'yellow', 'burn_column',
             'green', 'green' , 'green'
         ]);
+        const utilConfig = new UtilityConfig({
+            ...DEFAULT_CONFIG,
+            width: field.width,
+            height: field.height,
+            moves: 10,
+            winScore: 999,
+            countToSuper: 6,
+        });
         const game = new Game(
-            {
-                width: field.width,
-                height: field.height,
-                moves: 10,
-                winScore: 999,
-                countToSuper: 6,
-            },
+            utilConfig.config,
+            new TileFactory(utilConfig.config.colors, Object.keys(utilConfig.config.superActions)),
             field,
         );
         game.pick(2, 1);
+        const color = (t: TileKind) => utilConfig.isColorTile(t);
         expect(getGameTiles(game)).toEqualWithTileRules([
             'red'  , 'red'   , color,
             'blue' , 'yellow', color,
@@ -188,17 +243,21 @@ describe('Game', () => {
             'green' , 'green'  , 'green'      , 'green' ,
             'purple', 'purple' , 'blue'       , 'blue'  ,
         ]);
+        const utilConfig = new UtilityConfig({
+            ...DEFAULT_CONFIG,
+            width: field.width,
+            height: field.height,
+            moves: 10,
+            winScore: 999,
+            countToSuper: 6,
+        });
         const game = new Game(
-            {
-                width: field.width,
-                height: field.height,
-                moves: 10,
-                winScore: 999,
-                countToSuper: 6,
-            },
+            utilConfig.config,
+            new TileFactory(utilConfig.config.colors, Object.keys(utilConfig.config.superActions)),
             field,
         );
         game.pick(2, 1);
+        const color = (t: TileKind) => utilConfig.isColorTile(t);
         expect(getGameTiles(game)).toEqualWithTileRules([
             'red'   , 'purple', 'blue', 'blue',
             'blue'  ,  color  ,  color,  color,
@@ -214,17 +273,21 @@ describe('Game', () => {
             'green' , 'green'  , 'green'   , 'green' ,
             'purple', 'purple' , 'blue'    , 'blue'  ,
         ]);
+        const utilConfig = new UtilityConfig({
+            ...DEFAULT_CONFIG,
+            width: field.width,
+            height: field.height,
+            moves: 10,
+            winScore: 999,
+            countToSuper: 6,
+        });
         const game = new Game(
-            {
-                width: field.width,
-                height: field.height,
-                moves: 10,
-                winScore: 999,
-                countToSuper: 6,
-            },
+            utilConfig.config,
+            new TileFactory(utilConfig.config.colors, Object.keys(utilConfig.config.superActions)),
             field,
         );
         game.pick(2, 1);
+        const color = (t: TileKind) => utilConfig.isColorTile(t);
         expect(getGameTiles(game)).toEqualWithTileRules(Array(field.width * field.height).fill(color));
     });
 
@@ -239,17 +302,22 @@ describe('Game', () => {
             'purple', 'purple' , 'blue'  , 'blue'  , 'red', 'red', 'red', 'purple', 
             'purple', 'purple' , 'yellow', 'yellow', 'red', 'red', 'red', 'purple', 
         ]);
+        const utilConfig = new UtilityConfig({
+            ...DEFAULT_CONFIG,
+            width: field.width,
+            height: field.height,
+            moves: 10,
+            winScore: 999,
+            countToSuper: 6,
+        });
         const game = new Game(
-            {
-                width: field.width,
-                height: field.height,
-                moves: 10,
-                winScore: 999,
-                countToSuper: 6,
-            },
+            utilConfig.config,
+            new TileFactory(utilConfig.config.colors, Object.keys(utilConfig.config.superActions)),
             field,
         );
         game.pick(2, 3);
+        const color = (t: TileKind) => utilConfig.isColorTile(t);
+        const supar = (t: TileKind) => utilConfig.isSuperTile(t);
         expect(getGameTiles(game)).toEqualWithTileRules([
             'red'   , 'red'    , 'red'   , 'purple', 'red', 'red', 'red', 'purple', 
             'blue'  , 'yellow' , 'blue'  , 'yellow', 'red', 'red', 'red', 'purple', 
@@ -273,17 +341,22 @@ describe('Game', () => {
             'purple', 'purple' , 'blue'  , 'blue'  , 'red', 'red', 'red', 'purple', 
             'purple', 'purple' , 'yellow', 'yellow', 'red', 'red', 'red', 'purple', 
         ]);
+        const utilConfig = new UtilityConfig({
+            ...DEFAULT_CONFIG,
+            width: field.width,
+            height: field.height,
+            moves: 10,
+            winScore: 999,
+            countToSuper: 6,
+        });
         const game = new Game(
-            {
-                width: field.width,
-                height: field.height,
-                moves: 10,
-                winScore: 999,
-                countToSuper: 6,
-            },
+            utilConfig.config,
+            new TileFactory(utilConfig.config.colors, Object.keys(utilConfig.config.superActions)),
             field,
         );
         game.pick(2, 6);
+        const color = (t: TileKind) => utilConfig.isColorTile(t);
+        const supar = (t: TileKind) => utilConfig.isSuperTile(t);
         expect(getGameTiles(game)).toEqualWithTileRules([
             'red'   , 'red'    , 'red'   , 'purple', 'red', 'red', 'red', 'purple', 
             'blue'  , 'yellow' , 'blue'  , 'yellow', 'red', 'red', 'red', 'purple', 
@@ -307,17 +380,22 @@ describe('Game', () => {
             'purple', 'purple' , 'blue'  , 'blue'  , 'red', 'red', 'red', 'purple', 
             'purple', 'purple' , 'yellow', 'yellow', 'red', 'red', 'red', 'purple', 
         ]);
+        const utilConfig = new UtilityConfig({
+            ...DEFAULT_CONFIG,
+            width: field.width,
+            height: field.height,
+            moves: 10,
+            winScore: 999,
+            countToSuper: 6,
+        });
         const game = new Game(
-            {
-                width: field.width,
-                height: field.height,
-                moves: 10,
-                winScore: 999,
-                countToSuper: 6,
-            },
+            utilConfig.config,
+            new TileFactory(utilConfig.config.colors, Object.keys(utilConfig.config.superActions)),
             field,
         );
         game.pick(2, 4);
+        const color = (t: TileKind) => utilConfig.isColorTile(t);
+        const supar = (t: TileKind) => utilConfig.isSuperTile(t);
         expect(getGameTiles(game)).toEqualWithTileRules([
             'red'   , 'red'   , 'red'   , 'purple', 'red', 'red', 'red', 'purple', 
             'blue'  , 'yellow', 'blue'  , 'yellow', 'red', 'red', 'red', 'purple', 
@@ -337,21 +415,25 @@ describe('Game', () => {
             'green' , 'green'  , 'green' , 'green' , 'red'     , 'red'        , 'red', 'purple', 
             'purple', 'purple' , 'blue'  , 'blue'  , 'red'     , 'red'        , 'red', 'purple', 
             'purple', 'blue'   , 'blue'  , 'green' , 'red'     , 'red'        , 'red', 'purple', 
-            'purple', 'purple' , 'blue'  , 'green' , 'burn_raw', 'burn_column', 'red', 'purple', 
+            'purple', 'purple' , 'blue'  , 'green' , 'burn_row', 'burn_column', 'red', 'purple', 
             'purple', 'purple' , 'blue'  , 'blue'  , 'red'     , 'red'        , 'red', 'purple', 
             'purple', 'purple' , 'yellow', 'yellow', 'red'     , 'red'        , 'red', 'purple', 
         ]);
+        const utilConfig = new UtilityConfig({
+            ...DEFAULT_CONFIG,
+            width: field.width,
+            height: field.height,
+            moves: 10,
+            winScore: 999,
+            countToSuper: 6,
+        });
         const game = new Game(
-            {
-                width: field.width,
-                height: field.height,
-                moves: 10,
-                winScore: 999,
-                countToSuper: 6,
-            },
+            utilConfig.config,
+            new TileFactory(utilConfig.config.colors, Object.keys(utilConfig.config.superActions)),
             field,
         );
         game.pick(4, 5);
+        const color = (t: TileKind) => utilConfig.isColorTile(t);
         expect(getGameTiles(game)).toEqualWithTileRules([
             'red'   , 'red'    , 'red'   , 'purple', 'red' , color, 'red' , 'purple', 
             'blue'  , 'yellow' , 'blue'  , 'yellow', 'red' , color, 'red' , 'purple', 
@@ -371,14 +453,17 @@ describe('Game', () => {
             'blue' , 'yellow', 'blue',
             'green', 'green' , 'green'
         ]);
+        const utilConfig = new UtilityConfig({
+            ...DEFAULT_CONFIG,
+            width: field.width,
+            height: field.height,
+            moves: 10,
+            winScore: 999,
+            countToSuper: 6,
+        });
         const game = new Game(
-            {
-                width: field.width,
-                height: field.height,
-                moves: 10,
-                winScore: 999,
-                countToSuper: 6,
-            },
+            utilConfig.config,
+            new TileFactory(utilConfig.config.colors, Object.keys(utilConfig.config.superActions)),
             field,
         );
         game.restart();
@@ -393,14 +478,17 @@ describe('Game', () => {
             'blue' , 'yellow', 'blue',
             'green', 'blue'  , 'green'
         ]);
+        const utilConfig = new UtilityConfig({
+            ...DEFAULT_CONFIG,
+            width: field.width,
+            height: field.height,
+            moves: 10,
+            winScore: 999,
+            countToSuper: 6,
+        });
         const game = new Game(
-            {
-                width: field.width,
-                height: field.height,
-                moves: 10,
-                winScore: 999,
-                countToSuper: 6,
-            },
+            utilConfig.config,
+            new TileFactory(utilConfig.config.colors, Object.keys(utilConfig.config.superActions)),
             field,
         );
         expect(game.isGameOver()).toBeTruthy();
@@ -412,22 +500,24 @@ describe('Game', () => {
             'blue' , 'yellow', 'blue',
             'green', 'blue'  , 'green'
         ]);
-        const config = {
+        const utilConfig = new UtilityConfig({
+            ...DEFAULT_CONFIG,
             width: field.width,
             height: field.height,
             moves: 10,
             winScore: 999,
             countToSuper: 3,
-        };
+        });
         const game = new Game(
-            config,
+            utilConfig.config,
+            new TileFactory(utilConfig.config.colors, Object.keys(utilConfig.config.superActions)),
             field,
         );
         while(game.isGameOver()) {
             game.restart();
         }
-        for (let x = 0; x < config.width; x++) {
-            for (let y = 0; y < config.height; y++) {
+        for (let x = 0; x < utilConfig.config.width; x++) {
+            for (let y = 0; y < utilConfig.config.height; y++) {
                 game.pick(x, y);
             }
         }
@@ -435,6 +525,6 @@ describe('Game', () => {
         expect(tiles).not.toContain('empty');
         expect(tiles).not.toContain(undefined);
         expect(tiles).not.toContain(null);
-        expect(tiles).toHaveLength(config.width * config.height);
+        expect(tiles).toHaveLength(utilConfig.config.width * utilConfig.config.height);
     });
 });
