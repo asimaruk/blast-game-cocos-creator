@@ -45,8 +45,7 @@ export default class GameManager extends cc.Component implements Game.GameListen
 
     protected onLoad(): void {
         const extGameConfig = cc.game.config['gameConfig'];
-        log(extGameConfig);
-        if (!Config.isConfig(extGameConfig)) {
+        if (!CC_PREVIEW && !Config.isConfig(extGameConfig)) {
             error('Game config invalid');
         }
         const config: Config = Config.isConfig(extGameConfig) 
@@ -62,10 +61,45 @@ export default class GameManager extends cc.Component implements Game.GameListen
         this.game = new Game(config.game, tilesFactory);
         this.game.addGameListener(this);
         this.tiles?.node.on(Tiles.EventType.TILES_CLICK, this.onTilesClick, this);
-        this.tileFactory = this.getComponent(TileFactory);
-        this.tileFactory.setupSpritesConfig(config.sprites);
+        this.onLoadAsync(config);
 
-        this.onRestart(config.game, true);
+        this.onRestart(
+            config.game, 
+            {
+                resizeTiles: false,
+                gameOverTitlesFadeOut: false,
+                tilesFadeIn: false,
+            },
+        );
+    }
+
+    private async onLoadAsync(config: Config): Promise<void> {
+        await this.setupTilesFactory(config.sprites);
+        this.resizeTiles(config.game.width, config.game.height);
+        this.appearAllTiles();
+    }
+
+    private async setupTilesFactory(spritesConfig: Config['sprites']): Promise<void> {
+        this.tileFactory = this.getComponent(TileFactory);
+        this.tileFactory.setupSpritesConfig(spritesConfig);
+
+        const proms = Object.keys(spritesConfig).map(tile =>  new Promise<void>((res, rej) => {
+            const path = spritesConfig[tile];
+            cc.resources.load(
+                path, 
+                (err: Error, tex: cc.Texture2D) => {
+                    if (err) {
+                        error(err);
+                        rej(err);
+                    } else {
+                        const sprite = new cc.SpriteFrame(tex);
+                        this.tileFactory.setupSprite(tile, sprite);
+                        res();
+                    }
+                }
+            );
+        }));
+        await Promise.all(proms);
     }
 
     protected onDestroy(): void {
@@ -101,16 +135,25 @@ export default class GameManager extends cc.Component implements Game.GameListen
         this.game?.restart(config);
     }
 
-    private onRestart(config: Game.Config, isFirstTime: boolean = false) {
-        this.resizeTiles(config.width, config.height);
-        if (!isFirstTime) {
+    private onRestart(
+        config: Game.Config, 
+        options?: {
+            resizeTiles?: boolean,
+            tilesFadeIn: boolean,
+            gameOverTitlesFadeOut: boolean,
+        },
+    ) {
+        if (options?.resizeTiles ?? false) {
+            this.resizeTiles(config.width, config.height);
+        } 
+        if (options?.tilesFadeIn) {
             this.appearAllTiles();
         }
         this.setWinScore(config.winScore);
         this.setScore(0);
         this.setMoves(config.moves);
-        this.hideGameOverTitle(this.winTitle, isFirstTime);
-        this.hideGameOverTitle(this.loseTitle, isFirstTime);
+        this.hideGameOverTitle(this.winTitle, options?.gameOverTitlesFadeOut ?? false);
+        this.hideGameOverTitle(this.loseTitle, options?.gameOverTitlesFadeOut ?? false);
     }
 
     private resizeTiles(
@@ -138,7 +181,7 @@ export default class GameManager extends cc.Component implements Game.GameListen
     private appearAllTiles() {
         const tweens: cc.Tween[] = [];
         for (const t of this.tiles?.getAllChildTiles() ?? []) {
-            tweens.push(tweenScaleOut(t));
+            tweens.push(tweenFadeIn(t));
         }
         this.tiles?.queueTweens(...tweens);
     }
@@ -153,18 +196,18 @@ export default class GameManager extends cc.Component implements Game.GameListen
 
     private hideGameOverTitle(
         title: cc.Node | null,
-        isFirstTime: boolean,
+        fadeOut: boolean,
     ) {
-        if (!title) {
+        if (!title || !title.active) {
             return;
         }
 
-        if (isFirstTime) {
-            title.active = false;
-        } else if (title.active) {
+        if (fadeOut) {
             tweenFadeOut(title)
                 .call(() => title.active = false)
                 .start();
+        } else {
+            title.active = false;
         }
     }
 
@@ -252,10 +295,15 @@ export default class GameManager extends cc.Component implements Game.GameListen
     }
 
     private onGameRestart(event: Extract<Game.Event, { id: 'restart' }>) {
-        this.onRestart(event.config);
+        this.onRestart(
+            event.config, 
+            {
+                resizeTiles: true,
+                tilesFadeIn: true,
+                gameOverTitlesFadeOut: true,
+            },
+        );
     }
-
-    
 
     private getSparks(): cc.ParticleSystem {
         if (this.sparksPrefab === null) {

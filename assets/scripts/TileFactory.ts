@@ -8,24 +8,24 @@ export default class TileFactory extends cc.Component {
 
     @property(cc.Prefab)
     tilePrefab: cc.Prefab | null = null;
-    @property(cc.SpriteAtlas)
-    tilesAtlas: cc.SpriteAtlas | null = null;
 
     private tilePool = new cc.NodePool('Tile');
     private spritesConfig: {[key: TileKind]: string} | null = null;
+    private tileSprites: {[id: TileKind]: cc.SpriteFrame} = {};
 
     public setupSpritesConfig(spritesConfig: {[key: TileKind]: string}) {
         this.spritesConfig = spritesConfig;
     }
 
+    public setupSprite(tile: TileKind, sprite: cc.SpriteFrame) {
+        this.tileSprites[tile] = sprite;
+    }
+
     public getTile(tile: TileKind): cc.Node {
-        if (!this.tilesAtlas) {
-            throw new Error('TileFactory: tilesAtlas is null');
-        }
         if (!this.spritesConfig) {
             throw new Error('TileFactory: spritesConfig is null');
         }
-        const tileConfig: Tile.TileOptions = { sprite: this.tilesAtlas?.getSpriteFrame(this.spritesConfig[tile]) }
+        const tileConfig: Tile.TileOptions = { sprite: this.tileSprites[tile] };
         return this.tilePool.get(tileConfig) || this.createTile(tileConfig);
     }
 

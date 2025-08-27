@@ -1,11 +1,11 @@
 {
-    "red": "block_red",
-    "green": "block_green",
-    "blue": "block_blue",
-    "purple": "block_purpure",
-    "yellow": "block_yellow",
-    "burn_row": "block_rockets_horisontal",
-    "burn_column": "block_rakets",
-    "burn_around": "block_bomb",
-    "burn_all": "block_bomb_max"
+    "red": "sprites/block_red",
+    "green": "sprites/block_green",
+    "blue": "sprites/block_blue",
+    "purple": "sprites/block_purpure",
+    "yellow": "sprites/block_yellow",
+    "burn_row": "sprites/block_rockets_horisontal",
+    "burn_column": "sprites/block_rakets",
+    "burn_around": "sprites/block_bomb",
+    "burn_all": "sprites/block_bomb_max"
 }
