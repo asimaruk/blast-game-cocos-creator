@@ -1,5 +1,6 @@
 const { ccclass, property, requireComponent } = cc._decorator;
 import { 
+    DefaultGame,
     Game,
     TileFactory as GameTileFactory,
 } from "blast-core";
@@ -58,7 +59,7 @@ export default class GameManager extends cc.Component implements Game.GameListen
             config.game.colors, 
             Object.keys(config.game.superActions),
         );
-        this.game = new Game(config.game, tilesFactory);
+        this.game = new DefaultGame(config.game, tilesFactory);
         this.game.addGameListener(this);
         this.tiles?.node.on(Tiles.EventType.TILES_CLICK, this.onTilesClick, this);
         this.onLoadAsync(config);

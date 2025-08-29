@@ -1,12 +1,12 @@
-import { TileKind } from "./Tile";
+import { Game } from './Game';
 
 export class TileFactory {
     constructor(
-        private readonly tileColors: TileKind[],
-        private readonly superTiles: TileKind[],
+        private readonly tileColors: Game.TileKind[],
+        private readonly superTiles: Game.TileKind[],
     ) {}
 
-    createRandomColorTile(): TileKind {
+    createRandomColorTile(): Game.TileKind {
         const tileColor = this.tileColors[Math.floor(Math.random() * this.tileColors.length)];
         if (tileColor === undefined) {
             throw new Error("Unexpected undefined tile color");
@@ -14,7 +14,7 @@ export class TileFactory {
         return tileColor;
     }
     
-    createRandomSuperTile(): TileKind {
+    createRandomSuperTile(): Game.TileKind {
         const tileSuper = this.superTiles[Math.floor(Math.random() * this.superTiles.length)];
         if (tileSuper === undefined) {
             throw new Error("Unexpected undefined tile color");
@@ -22,7 +22,7 @@ export class TileFactory {
         return tileSuper;
     }
 
-    createRandomColors(count: number): TileKind[] {
+    createRandomColors(count: number): Game.TileKind[] {
         return Array.from({ length: count }, () => this.createRandomColorTile());
     }
 }

@@ -1,8 +1,3 @@
-import { 
-    EMPTY_TILE,
-    isTileEmpty,
-    TileKind,
-} from './Tile';
 import { TileField } from './TileField';
 import { Game } from './Game';
 
@@ -10,8 +5,8 @@ export function findTouchingTiles(
     tileField: TileField,
     x: number, 
     y: number, 
-    tile: TileKind, 
-    targetTiles: TileKind[] = [tile],
+    tile: Game.TileKind, 
+    targetTiles: Game.TileKind[] = [tile],
 ): Game.Position[] {
     const touching: Game.Position[] = [{x, y}];
     const edges: Game.Position[] = [{x, y}];
@@ -55,16 +50,16 @@ export function fallTiles(tileField: TileField): [Game.Position, Game.Position][
     for (let x = 0; x < tileField.width; x++) {
         for (let y = 0; y < tileField.height; y++) {
             const tile = tileField.getTile(x, y);
-            if (!isTileEmpty(tile)) {
+            if (!Game.isTileEmpty(tile)) {
                 continue;
             }
             for (let fallY = y + 1; fallY < tileField.height; fallY++) {
                 const fallTile = tileField.getTile(x, fallY);
-                if (isTileEmpty(fallTile) || fallTile === undefined) {
+                if (Game.isTileEmpty(fallTile) || fallTile === undefined) {
                     continue;
                 }
                 tileField.setTile(x, y, fallTile);
-                tileField.setTile(x, fallY, EMPTY_TILE);
+                tileField.setTile(x, fallY, Game.EMPTY_TILE);
                 moves.push([
                     { x: x, y: fallY },
                     { x: x, y: y },
@@ -78,12 +73,12 @@ export function fallTiles(tileField: TileField): [Game.Position, Game.Position][
 
 export function generateNewTiles(
     tileField: TileField,
-    createRandomColorTile: () => TileKind,
+    createRandomColorTile: () => Game.TileKind,
 ): Game.TilePosition[] {
     const gens: Game.TilePosition[] = [];
     for (let x = 0; x < tileField.width; x++) {
         for (let y = 0; y < tileField.height; y++) {
-            if (tileField.getTile(x, y) === EMPTY_TILE) {
+            if (tileField.getTile(x, y) === Game.EMPTY_TILE) {
                 const tile = createRandomColorTile();
                 tileField.setTile(x, y, tile);
                 gens.push({ x, y, tile });
@@ -95,7 +90,7 @@ export function generateNewTiles(
 
 export function hasMoves(
     tileField: TileField,
-    isSuperTile: (t: TileKind) => boolean,
+    isSuperTile: (t: Game.TileKind) => boolean,
 ): boolean {
     for (let x = 0; x < tileField.width; x++) {
         for (let y = 0; y < tileField.height; y++) {

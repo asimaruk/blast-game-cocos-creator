@@ -1,4 +1,4 @@
-import { TileKind } from "blast-core";
+import { Game } from "blast-core";
 import { Tile } from "./Tile";
 
 const {ccclass, property} = cc._decorator;
@@ -10,18 +10,18 @@ export default class TileFactory extends cc.Component {
     tilePrefab: cc.Prefab | null = null;
 
     private tilePool = new cc.NodePool('Tile');
-    private spritesConfig: {[key: TileKind]: string} | null = null;
-    private tileSprites: {[id: TileKind]: cc.SpriteFrame} = {};
+    private spritesConfig: {[key: Game.TileKind]: string} | null = null;
+    private tileSprites: {[id: Game.TileKind]: cc.SpriteFrame} = {};
 
-    public setupSpritesConfig(spritesConfig: {[key: TileKind]: string}) {
+    public setupSpritesConfig(spritesConfig: {[key: Game.TileKind]: string}) {
         this.spritesConfig = spritesConfig;
     }
 
-    public setupSprite(tile: TileKind, sprite: cc.SpriteFrame) {
+    public setupSprite(tile: Game.TileKind, sprite: cc.SpriteFrame) {
         this.tileSprites[tile] = sprite;
     }
 
-    public getTile(tile: TileKind): cc.Node {
+    public getTile(tile: Game.TileKind): cc.Node {
         if (!this.spritesConfig) {
             throw new Error('TileFactory: spritesConfig is null');
         }

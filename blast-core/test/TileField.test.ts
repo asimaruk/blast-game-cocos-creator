@@ -1,9 +1,9 @@
 import { describe, it, expect } from '@jest/globals';
 import { DefaultTileField } from '../src/TileField';
-import { TileKind } from '../src/Tile';
 import { TileFactory } from '../src/TileFactory';
+import { Game } from '../src';
 
-const colors: TileKind[] = ['red', 'green', 'blue', 'purple', 'yellow'];
+const colors: Game.TileKind[] = ['red', 'green', 'blue', 'purple', 'yellow'];
 
 describe('TileField', () => {
     it('getTile(0, 0)', () => {
@@ -13,7 +13,7 @@ describe('TileField', () => {
             'green', 'yellow',
         ]);
         const tile = tileField.getTile(0, 0);
-        expect(tile).toBe('red' satisfies TileKind);
+        expect(tile).toBe('red' satisfies Game.TileKind);
     });
 
     it('getTile(1, 2)', () => {
@@ -23,7 +23,7 @@ describe('TileField', () => {
             'green', 'yellow',
         ]);
         const tile = tileField.getTile(1, 2);
-        expect(tile).toBe('yellow' satisfies TileKind);
+        expect(tile).toBe('yellow' satisfies Game.TileKind);
     });
 
     it('getTile() defined', () => {

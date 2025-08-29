@@ -1,9 +1,8 @@
-import { Game } from "./Game";
-import { isTileKind, TileKind } from "./Tile";
+import { Game } from './Game';
 
 type Validator<T> = (value: T) => boolean;
 
-function validateUniq(tiles: TileKind[], uniqueTiles: TileKind[]): boolean {
+function validateUniq(tiles: Game.TileKind[], uniqueTiles: Game.TileKind[]): boolean {
     for (const t of tiles) {
         if (uniqueTiles.indexOf(t) >= 0) {
             return false;
@@ -30,11 +29,11 @@ export class UtilityConfig {
             && typeof obj.countToSuper === 'number' 
             && 'colors' in obj 
             && Array.isArray(obj.colors)
-            && obj.colors.every(c => isTileKind(c))
+            && obj.colors.every(c => Game.isTileKind(c))
             && 'superActions' in obj
             && typeof obj.superActions === 'object' 
             && obj.superActions !== null
-            && Object.keys(obj.superActions).every(k => isTileKind(k))
+            && Object.keys(obj.superActions).every(k => Game.isTileKind(k))
             && Object.values(obj.superActions).every(v => Array.isArray(v) && v.every(a => Game.isAction(a)));
     }
 
@@ -43,7 +42,7 @@ export class UtilityConfig {
         errors: string[], 
     } {
         const errors: string[] = [];
-        const uniqueTiles: TileKind[] = [];
+        const uniqueTiles: Game.TileKind[] = [];
         const checks: {[key in keyof Game.Config]: Validator<Game.Config[key]>} = {
             width: v => v > 0,
             height: v => v > 0,
@@ -75,11 +74,11 @@ export class UtilityConfig {
         }
     }
 
-    isColorTile(tile: unknown): tile is TileKind {
+    isColorTile(tile: unknown): tile is Game.TileKind {
         return this.config.colors.findIndex((t) => t === tile) >= 0;
     }
 
-    isSuperTile(tile: unknown): tile is TileKind {
+    isSuperTile(tile: unknown): tile is Game.TileKind {
         return Object.keys(this.config.superActions).findIndex((t) => t === tile) >= 0;
     }
 }

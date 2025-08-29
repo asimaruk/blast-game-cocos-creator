@@ -4,13 +4,11 @@ import {
     expect, 
     xit,
 } from '@jest/globals';
-import { 
-    Game,
-    TileKind, 
-} from '../src';
+import { Game } from '../src';
 import { DefaultTileField } from '../src/TileField';
 import { TileFactory } from '../src/TileFactory';
 import { UtilityConfig } from '../src/UtilityConfig';
+import { DefaultGame } from '../src/DefaultGame';
 
 type SyncExpectationResult = { pass: boolean, message: () => string };
 type ExpectationResult =
@@ -19,14 +17,14 @@ type ExpectationResult =
 
 declare module 'expect' {
     interface Matchers<R> {
-        toEqualWithTileRules(expected: (TileKind | ((t: TileKind) => boolean))[]): R;
+        toEqualWithTileRules(expected: (Game.TileKind | ((t: Game.TileKind) => boolean))[]): R;
     }
 }
 
 expect.extend({
     toEqualWithTileRules(
-        received: TileKind[], 
-        expected: TileKind | ((t: TileKind) => boolean)[]
+        received: Game.TileKind[], 
+        expected: Game.TileKind | ((t: Game.TileKind) => boolean)[]
     ): ExpectationResult {
         if (received.length !== expected.length) {
             return {
@@ -58,8 +56,8 @@ expect.extend({
     }
 });
 
-function getGameTiles(game: Game): TileKind[] {
-    const tiles: TileKind[] = [];
+function getGameTiles(game: Game): Game.TileKind[] {
+    const tiles: Game.TileKind[] = [];
     for (let y = 0; y < game.getHeight(); y++) {
         for (let x = 0; x < game.getWidth(); x++) {
             const tile = game.getTile(x, y);
@@ -120,7 +118,7 @@ describe('Game', () => {
             'red'  , 'red'   ,
             'blue' , 'red'   ,
         ]);
-        const game = new Game(
+        const game = new DefaultGame(
             {
                 ...DEFAULT_CONFIG,
                 width: 4,
@@ -140,7 +138,7 @@ describe('Game', () => {
             'red'  , 'red'   ,
             'blue' , 'red'   ,
         ]);
-        const game = new Game(
+        const game = new DefaultGame(
             {
                 ...DEFAULT_CONFIG,
                 width: 4,
@@ -162,7 +160,7 @@ describe('Game', () => {
             'blue' , 'yellow', 'blue',
             'blue' , 'purple', 'blue',
         ]);
-        const game = new Game(
+        const game = new DefaultGame(
             {
                 ...DEFAULT_CONFIG,
                 width: 4,
@@ -194,13 +192,13 @@ describe('Game', () => {
             winScore: 999,
             countToSuper: 6,
         });
-        const game = new Game(
+        const game = new DefaultGame(
             utilConfig.config,
             new TileFactory(DEFAULT_CONFIG.colors, Object.keys(DEFAULT_CONFIG.superActions)),
             field,
         );
         game.pick(2, 1);
-        const color = (t: TileKind) => utilConfig.isColorTile(t);
+        const color = (t: Game.TileKind) => utilConfig.isColorTile(t);
         expect(getGameTiles(game)).toEqualWithTileRules([
             'red'  , 'red'  , 'red'  ,
             'green', 'green', 'green',
@@ -222,13 +220,13 @@ describe('Game', () => {
             winScore: 999,
             countToSuper: 6,
         });
-        const game = new Game(
+        const game = new DefaultGame(
             utilConfig.config,
             new TileFactory(utilConfig.config.colors, Object.keys(utilConfig.config.superActions)),
             field,
         );
         game.pick(2, 1);
-        const color = (t: TileKind) => utilConfig.isColorTile(t);
+        const color = (t: Game.TileKind) => utilConfig.isColorTile(t);
         expect(getGameTiles(game)).toEqualWithTileRules([
             'red'  , 'red'   , color,
             'blue' , 'yellow', color,
@@ -251,13 +249,13 @@ describe('Game', () => {
             winScore: 999,
             countToSuper: 6,
         });
-        const game = new Game(
+        const game = new DefaultGame(
             utilConfig.config,
             new TileFactory(utilConfig.config.colors, Object.keys(utilConfig.config.superActions)),
             field,
         );
         game.pick(2, 1);
-        const color = (t: TileKind) => utilConfig.isColorTile(t);
+        const color = (t: Game.TileKind) => utilConfig.isColorTile(t);
         expect(getGameTiles(game)).toEqualWithTileRules([
             'red'   , 'purple', 'blue', 'blue',
             'blue'  ,  color  ,  color,  color,
@@ -281,13 +279,13 @@ describe('Game', () => {
             winScore: 999,
             countToSuper: 6,
         });
-        const game = new Game(
+        const game = new DefaultGame(
             utilConfig.config,
             new TileFactory(utilConfig.config.colors, Object.keys(utilConfig.config.superActions)),
             field,
         );
         game.pick(2, 1);
-        const color = (t: TileKind) => utilConfig.isColorTile(t);
+        const color = (t: Game.TileKind) => utilConfig.isColorTile(t);
         expect(getGameTiles(game)).toEqualWithTileRules(Array(field.width * field.height).fill(color));
     });
 
@@ -310,14 +308,14 @@ describe('Game', () => {
             winScore: 999,
             countToSuper: 6,
         });
-        const game = new Game(
+        const game = new DefaultGame(
             utilConfig.config,
             new TileFactory(utilConfig.config.colors, Object.keys(utilConfig.config.superActions)),
             field,
         );
         game.pick(2, 3);
-        const color = (t: TileKind) => utilConfig.isColorTile(t);
-        const supar = (t: TileKind) => utilConfig.isSuperTile(t);
+        const color = (t: Game.TileKind) => utilConfig.isColorTile(t);
+        const supar = (t: Game.TileKind) => utilConfig.isSuperTile(t);
         expect(getGameTiles(game)).toEqualWithTileRules([
             'red'   , 'red'    , 'red'   , 'purple', 'red', 'red', 'red', 'purple', 
             'blue'  , 'yellow' , 'blue'  , 'yellow', 'red', 'red', 'red', 'purple', 
@@ -349,14 +347,14 @@ describe('Game', () => {
             winScore: 999,
             countToSuper: 6,
         });
-        const game = new Game(
+        const game = new DefaultGame(
             utilConfig.config,
             new TileFactory(utilConfig.config.colors, Object.keys(utilConfig.config.superActions)),
             field,
         );
         game.pick(2, 6);
-        const color = (t: TileKind) => utilConfig.isColorTile(t);
-        const supar = (t: TileKind) => utilConfig.isSuperTile(t);
+        const color = (t: Game.TileKind) => utilConfig.isColorTile(t);
+        const supar = (t: Game.TileKind) => utilConfig.isSuperTile(t);
         expect(getGameTiles(game)).toEqualWithTileRules([
             'red'   , 'red'    , 'red'   , 'purple', 'red', 'red', 'red', 'purple', 
             'blue'  , 'yellow' , 'blue'  , 'yellow', 'red', 'red', 'red', 'purple', 
@@ -388,14 +386,14 @@ describe('Game', () => {
             winScore: 999,
             countToSuper: 6,
         });
-        const game = new Game(
+        const game = new DefaultGame(
             utilConfig.config,
             new TileFactory(utilConfig.config.colors, Object.keys(utilConfig.config.superActions)),
             field,
         );
         game.pick(2, 4);
-        const color = (t: TileKind) => utilConfig.isColorTile(t);
-        const supar = (t: TileKind) => utilConfig.isSuperTile(t);
+        const color = (t: Game.TileKind) => utilConfig.isColorTile(t);
+        const supar = (t: Game.TileKind) => utilConfig.isSuperTile(t);
         expect(getGameTiles(game)).toEqualWithTileRules([
             'red'   , 'red'   , 'red'   , 'purple', 'red', 'red', 'red', 'purple', 
             'blue'  , 'yellow', 'blue'  , 'yellow', 'red', 'red', 'red', 'purple', 
@@ -427,13 +425,13 @@ describe('Game', () => {
             winScore: 999,
             countToSuper: 6,
         });
-        const game = new Game(
+        const game = new DefaultGame(
             utilConfig.config,
             new TileFactory(utilConfig.config.colors, Object.keys(utilConfig.config.superActions)),
             field,
         );
         game.pick(4, 5);
-        const color = (t: TileKind) => utilConfig.isColorTile(t);
+        const color = (t: Game.TileKind) => utilConfig.isColorTile(t);
         expect(getGameTiles(game)).toEqualWithTileRules([
             'red'   , 'red'    , 'red'   , 'purple', 'red' , color, 'red' , 'purple', 
             'blue'  , 'yellow' , 'blue'  , 'yellow', 'red' , color, 'red' , 'purple', 
@@ -461,7 +459,7 @@ describe('Game', () => {
             winScore: 999,
             countToSuper: 6,
         });
-        const game = new Game(
+        const game = new DefaultGame(
             utilConfig.config,
             new TileFactory(utilConfig.config.colors, Object.keys(utilConfig.config.superActions)),
             field,
@@ -486,7 +484,7 @@ describe('Game', () => {
             winScore: 999,
             countToSuper: 6,
         });
-        const game = new Game(
+        const game = new DefaultGame(
             utilConfig.config,
             new TileFactory(utilConfig.config.colors, Object.keys(utilConfig.config.superActions)),
             field,
@@ -508,7 +506,7 @@ describe('Game', () => {
             winScore: 999,
             countToSuper: 3,
         });
-        const game = new Game(
+        const game = new DefaultGame(
             utilConfig.config,
             new TileFactory(utilConfig.config.colors, Object.keys(utilConfig.config.superActions)),
             field,

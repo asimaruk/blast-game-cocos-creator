@@ -1,5 +1,5 @@
 import { getAffectedPositions } from "../src/utils-game";
-import { TileKind } from "../src/Tile";
+import { Game } from "../src";
 import { DefaultTileField, TestDefaultTileField } from "../src/TileField";
 import { fallTiles, findTouchingTiles, generateNewTiles, hasMoves } from "../src/utils-game";
 import { describe, it, expect, xdescribe, xit } from '@jest/globals';
@@ -167,7 +167,7 @@ describe('generateNewTiles', () => {
             'purple', 'blue'  , 'empty' , 'red'   ,
         ]);
         generateNewTiles(field, randomTile);
-        expect(field.tiles_).not.toContain('empty' satisfies TileKind);
+        expect(field.tiles_).not.toContain('empty' satisfies Game.TileKind);
     });
 });
 
