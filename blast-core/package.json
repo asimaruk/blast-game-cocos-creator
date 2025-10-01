@@ -9,7 +9,11 @@
   },
   "jest": {
     "preset": "ts-jest",
-    "testEnvironment": "node"
+    "testEnvironment": "node",
+    "setupFilesAfterEnv": [
+      "<rootDir>/test/setupTests.ts",
+      "<rootDir>/test/testUtils.ts"
+    ]
   },
   "keywords": [],
   "author": "",

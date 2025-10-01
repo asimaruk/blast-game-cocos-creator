@@ -1,17 +1,17 @@
-import { Game } from "./Game";
-import { TileFactory } from "./TileFactory";
+import { RefillCommand } from './command/RefillCommand';
+import { BlastCommand } from './command/BlastCommand';
+import { Command } from './command/Command';
+import { Game } from './Game';
+import { TileFactory } from './TileFactory';
 import { 
     DefaultTileField, 
     TileField, 
-} from "./TileField";
-import { UtilityConfig } from "./UtilityConfig";
-import {
-    fallTiles, 
-    findTouchingTiles, 
-    generateNewTiles,
-    getAffectedPositions,
-    hasMoves, 
-} from "./utils-game";
+} from './TileField';
+import { UtilityConfig } from './UtilityConfig';
+import { renameProperties } from './utils';
+import { hasMoves } from './utils-game';
+import { MoveCommand } from './command/MoveCommand';
+import { CommandFactory } from './command/CommandFactory';
 
 export class DefaultGame implements Game {
 
@@ -20,10 +20,12 @@ export class DefaultGame implements Game {
     private gameListeners: Game.GameListener[] = [];
     private tileField: TileField;
     private config: UtilityConfig;
+    private commandChunks: Command[][] = [];
 
     constructor(
         config: Game.Config,
         private tileFactory: TileFactory,
+        private commandFactory: CommandFactory,
         tileField?: TileField,
     ) {
         this.config = new UtilityConfig(config);
@@ -40,36 +42,43 @@ export class DefaultGame implements Game {
         return this.tileField.getTile(x, y);
     }
 
-    public pick(x: number, y: number) {
+    public pickTile(x: number, y: number) {
         if (this.isGameOver()) {
             return;
         }
 
+        const commandsChunk: Command[] = [];
+        this.commandChunks.push(commandsChunk);
         const tile = this.tileField.getTile(x, y);
         if (this.config.isColorTile(tile)) {
-            this.onColorPick(x, y, tile);
+            const blastCommand = new BlastCommand(this.tileField, { x, y });
+            this.pushCommand(blastCommand);
         } else if (this.config.isSuperTile(tile)) {
-            this.onSuperPick(x, y, tile);
+            const superActions = this.config.config.superActions[tile];
+            if (superActions === undefined) {
+                throw new Error(`Undefined actions for ${tile} tile at {${x}; ${y}}`);
+            }
+
+            const superCommand = this.commandFactory.createSuperCommandForPosition(
+                this, 
+                superActions, 
+                { x, y }, 
+                1,
+            );
+            this.pushCommand(superCommand);
         } else {
             throw new Error(`${tile} tile at {${x}; ${y}}`);
         }
-
-        const falls = fallTiles(this.tileField);
-        if (falls.length > 0) {
-            this.emitEvent({
-                id: 'fall',
-                falls: falls,
-            });
+        if (commandsChunk.length === 0) {
+            this.commandChunks.pop();
+            return;
         }
 
-        const gens = generateNewTiles(this.tileField, () => this.tileFactory.createRandomColorTile());
-        if (gens.length > 0) {
-            this.emitEvent({
-                id: 'appear',
-                tiles: gens,
-            });
+        this.pushCommand(MoveCommand.createFalls(this));
+        this.pushCommand(new RefillCommand(this, this.tileFactory));
+        for (const command of commandsChunk) {
+            this.execCommand(command);
         }
-
         this.checkWinOrLose();
     }
 
@@ -118,102 +127,77 @@ export class DefaultGame implements Game {
         return this.movesLeft === 0 || !hasMoves(this.tileField, (t: Game.TileKind) => this.config.isSuperTile(t));
     }
 
-    public getWidth(): number {
-        return this.config.config.width;
+    public getConfig(): UtilityConfig {
+        return this.config;
     }
 
-    public getHeight(): number {
-        return this.config.config.height;
+    public getTileField(): TileField {
+        return this.tileField;
     }
 
+    blastTile(x: number, y: number): void {
+        this.setTile(x, y, Game.EMPTY_TILE);
+    }
+
+    moveTile(x0: number, y0: number, x1: number, y1: number): void {
+        const tile = this.tileField.getTile(x0, y0);
+        if (tile === undefined || Game.isTileEmpty(tile)) {
+            return;
+        }
+        this.tileField.setTile(x1, y1, tile);
+        this.tileField.setTile(x0, y0, Game.EMPTY_TILE);
+    }
+
+    setMovesLeft(value: number): void {
+        this.movesLeft = value;
+    }
+
+    setScore(value: number): void {
+        this.score = value;
+    }
+
+    setTile(x: number, y: number, tile: Game.TileKind): void {
+        this.tileField.setTile(x, y, tile);
+    }
+
+    undo(): void {
+        const chunk = this.commandChunks.pop();
+        if (chunk === undefined) {
+            return;
+        }
+        for (let i = chunk.length - 1; i >= 0; i--) {
+            const cmd = chunk[i]!!;
+            this.undoCommand(cmd);
+        }
+    }
+
+    private execCommand(command: Command) {
+        const result = command.do(this);
+        this.handleCommandResult(result);
+        const responseCommands = this.commandFactory.createAutoCommandsForResponse(
+            this,
+            this.tileFactory,
+            result,
+        );
+        if (responseCommands.length === 0) {
+            return;
+        }
+        this.insertCommandsAfter(command, ...responseCommands);
+    }
+
+    private undoCommand(command: Command) {
+        const result = command.undo(this);
+        this.handleCommandResult(result);
+    }
+
+    private handleCommandResult(result: Command.Result) {
+        this.emitEvent(renameProperties(result, { type: 'id' }));
+    }
+    
     private onRestart() {
         this.score = 0;
         this.movesLeft = this.config.config.moves;
-    }
-    
-    private onColorPick(x: number, y: number, tile: Game.TileKind) {
-        const touchingPositions = findTouchingTiles(this.tileField, x, y, tile);
-        if (touchingPositions.length === 1) {
-            return;
-        }
-
-        this.score += touchingPositions.length;
-        this.movesLeft--;
-
-        this.emitEvent({
-            id: 'blast',
-            positions: touchingPositions,
-            score: this.score,
-            movesLeft: this.movesLeft,
-        });
-
-        if (touchingPositions.length >= this.config.config.countToSuper) {
-            const randomSuper = this.tileFactory.createRandomSuperTile();
-            this.tileField.setTile(x, y, randomSuper);
-            this.emitEvent({
-                id: 'appear',
-                tiles: [
-                    { x, y, tile: randomSuper },
-                ],
-            });
-            const superIdx = touchingPositions.findIndex(p => p.x === x && p.y === y);
-            if (superIdx >= 0) {
-                touchingPositions.splice(superIdx, 1);
-            }
-        }
-
-        this.burnTiles(touchingPositions);
-    }
-
-    private onSuperPick(x: number, y: number, tile: Game.TileKind) {
-        const burnPositions: Game.Position[] = [];
-        const superTiles:Game.TilePosition[] = [{ x, y, tile }];
-        for (let i = 0; i < superTiles.length; i++) {
-            const superTile = superTiles[i];
-            if (!this.config.isSuperTile(superTile?.tile)) {
-                throw new Error('Super tile should be super');
-            }
-            this.useSuperTile(superTile.x, superTile.y, superTile.tile, burnPositions, superTiles);
-        }
-
-        this.score += burnPositions.length;
-        this.movesLeft--;
-
-        this.burnTiles(burnPositions.concat(superTiles));
-
-        this.emitEvent({
-            id: 'burn',
-            burnPositions: burnPositions,
-            superTiles: superTiles,
-            movesLeft: this.movesLeft,
-            score: this.score,
-        });
-    }
-
-    private useSuperTile(
-        x: number, 
-        y: number, 
-        superTile: Game.TileKind, 
-        outBurnPositions: Game.Position[], 
-        outSuperTiles: Game.TilePosition[],
-    ) {
-        const affectedPositions = getAffectedPositions(
-            x, 
-            y, 
-            this.config.config.width, 
-            this.config.config.height,
-            this.config.config.superActions[superTile] ?? [],
-        );
-        for (const p of affectedPositions) {
-            const tile = this.getTile(p.x, p.y);
-            const isUnknownColorTile = outBurnPositions.findIndex(bp => bp.x === p.x && bp.y === p.y) === -1;
-            const isUnknownSuperTile = outSuperTiles.findIndex(t => t.x === p.x && t.y === p.y) === -1;
-            if (this.config.isColorTile(tile) && isUnknownColorTile) {
-                outBurnPositions.push({ x: p.x, y: p.y });
-            } else if (this.config.isSuperTile(tile) && isUnknownSuperTile) {
-                outSuperTiles.push({ x: p.x, y: p.y, tile: tile });
-            }
-        }
+        this.commandChunks = [];
     }
 
     private checkWinOrLose() {
@@ -232,9 +216,23 @@ export class DefaultGame implements Game {
         }
     }
 
-    private burnTiles(burnPositions: Game.Position[]) {
-        for (const bp of burnPositions) {
-            this.tileField.setTile(bp.x, bp.y, Game.EMPTY_TILE);
+    private pushCommand(command: Command) {
+        const commandChunk = this.commandChunks[this.commandChunks.length - 1];
+        commandChunk?.push(command);
+    }
+
+    private insertCommandsAt(index: number, ...commands: Command[]) {
+        const commandChunk = this.commandChunks[this.commandChunks.length - 1];
+        commandChunk?.splice(index, 0, ...commands);
+    }
+
+    private insertCommandsAfter(command: Command, ...commands: Command[]) {
+        const commandChunk = this.commandChunks[this.commandChunks.length - 1];
+        const commandIndex = commandChunk?.indexOf(command);
+        if (commandIndex === undefined || commandIndex === -1) {
+            return;
         }
+
+        this.insertCommandsAt(commandIndex + 1, ...commands);
     }
 }

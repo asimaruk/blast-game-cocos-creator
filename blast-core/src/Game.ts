@@ -1,14 +1,25 @@
+import { Command } from "./command/Command";
+import { TileField } from "./TileField";
+import { UtilityConfig } from "./UtilityConfig";
+import { RenameProperties } from "./utils";
+
 export interface Game {
     getTile(x: number, y: number): Game.TileKind | undefined;
-    pick(x: number, y: number): void;
+    pickTile(x: number, y: number): void;
+    moveTile(x0: number, y0: number, x1: number, x2: number): void;
+    blastTile(x: number, y: number): void;
+    setTile(x: number, y: number, tile: Game.TileKind): void;
     restart(cfg?: Game.Config): void;
     addGameListener(listener: Game.GameListener): void;
     removeGameListener(listener: Game.GameListener): void;
     getMovesLeft(): number;
+    setMovesLeft(value: number): void;
     getScore(): number;
+    setScore(value: number): void;
     isGameOver(): boolean;
-    getWidth(): number;
-    getHeight(): number;
+    getConfig(): UtilityConfig;
+    getTileField(): TileField;
+    undo(): void;
 }
 
 export namespace Game {
@@ -23,11 +34,7 @@ export namespace Game {
     export type TilePosition = { tile: TileKind } & Position;
     export type RangePosition = {
         x: number | 'e',
-        y : number | 'e',
-    };
-    type GameStats = {
-        score: number,
-        movesLeft: number,
+        y: number | 'e',
     };
     type WinEvent = {
         id: 'win',
@@ -35,23 +42,13 @@ export namespace Game {
     type LoseEvent = {
         id: 'lose',
     };
-    type BlastEvent = {
-        id: 'blast',
-        positions: { x: number, y: number }[],
-    } & GameStats;
-    type FallEvent = {
-        id: 'fall',
-        falls: [Position, Position][],
-    };
-    type AppearEvent = {
-        id: 'appear',
-        tiles: TilePosition[],
-    };
-    type BurnEvent = {
-        id: 'burn',
-        burnPositions: { x: number, y: number }[],
-        superTiles: TilePosition[],
-    } & GameStats;
+    type BlastEvent = RenameProperties<Command.BlastResult, { type: 'id' }>;
+    type MoveEvent = RenameProperties<Command.MovesResult, { type: 'id' }>;
+    type RefillEvent = RenameProperties<Command.RefillsResult, { type: 'id' }>;
+    type AppearEvent = RenameProperties<Command.AppearResult, { type: 'id' }>;
+    type AppearsEvent = RenameProperties<Command.AppearsResult, { type: 'id' }>;
+    type BurnEvent = RenameProperties<Command.BurnsResult, { type: 'id' }>;
+    type DisappearEvent = RenameProperties<Command.DisappearsResult, { type: 'id' }>;
     type Restart = {
         id: 'restart',
         config: Game.Config,
@@ -59,9 +56,12 @@ export namespace Game {
     export type Event = WinEvent 
                       | LoseEvent 
                       | BlastEvent 
-                      | FallEvent 
-                      | AppearEvent 
+                      | MoveEvent 
+                      | RefillEvent 
+                      | AppearEvent
+                      | AppearsEvent
                       | BurnEvent
+                      | DisappearEvent
                       | Restart
                       ;
     export type BurnAction = {
