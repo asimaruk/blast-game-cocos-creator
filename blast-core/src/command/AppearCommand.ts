@@ -12,12 +12,12 @@ export class AppearCommand implements Command {
     do(game: Game): Command.Result {
         game.setTile(this.x, this.y, this.tile);
         return {
-            type: 'appear',
-            appear: { 
+            type: 'appears',
+            appears: [{ 
                 x: this.x, 
                 y: this.y, 
                 tile: this.tile
-            },
+            }],
         }
     }
 

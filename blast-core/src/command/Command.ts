@@ -29,10 +29,6 @@ export namespace Command {
         type: 'refills';
         refills: Game.TilePosition[],
     };
-    export type AppearResult = {
-        type: 'appear';
-        appear: Game.TilePosition,
-    };
     export type AppearsResult = {
         type: 'appears';
         appears: Game.TilePosition[],
@@ -44,7 +40,6 @@ export namespace Command {
     type SpecificResult = BurnsResult
                         | MovesResult
                         | RefillsResult
-                        | AppearResult
                         | AppearsResult
                         | DisappearsResult
                         | BlastResult

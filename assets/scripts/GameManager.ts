@@ -1,5 +1,6 @@
 const { ccclass, property, requireComponent } = cc._decorator;
 import { 
+    DefaultCommandFactory,
     DefaultGame,
     Game,
     TileFactory as GameTileFactory,
@@ -20,9 +21,11 @@ import {
     DEFAULT_SPRITES,
 } from "./Config";
 import TileFactory from "./TileFactory";
+import { KeyboardManager } from "./KeyboardManager";
 
 @ccclass
 @requireComponent(TileFactory)
+@requireComponent(KeyboardManager)
 export default class GameManager extends cc.Component implements Game.GameListener {
 
     @property(cc.Label)
@@ -56,12 +59,18 @@ export default class GameManager extends cc.Component implements Game.GameListen
                         sprites: DEFAULT_SPRITES,
                      };
         const tilesFactory = new GameTileFactory(
-            config.game.colors, 
+            config.game.colors,
             Object.keys(config.game.superActions),
         );
-        this.game = new DefaultGame(config.game, tilesFactory);
+        const commandFactory = new DefaultCommandFactory();
+        this.game = new DefaultGame(
+            config.game, 
+            tilesFactory,
+            commandFactory,
+        );
         this.game.addGameListener(this);
         this.tiles?.node.on(Tiles.EventType.TILES_CLICK, this.onTilesClick, this);
+        this.node.on(KeyboardManager.EventType.CLICK_EVENT, this.onKeyClickEvent, this);
         this.onLoadAsync(config);
 
         this.onRestart(
@@ -106,25 +115,35 @@ export default class GameManager extends cc.Component implements Game.GameListen
     protected onDestroy(): void {
         this.game?.removeGameListener(this);
         this.tiles?.node.off(Tiles.EventType.TILES_CLICK, this.onTilesClick, this);
+        this.node.off(KeyboardManager.EventType.CLICK_EVENT, this.onKeyClickEvent, this);
     }
 
     public onGameEvent(event: Game.Event) {
+        log('Game Event: ', event);
+        this.setScore(this.game?.getScore() ?? 0);
+        this.setMoves(this.game?.getMovesLeft() ?? 0);
         switch (event.id) {
             case "win":
             case "lose":
                 this.onGameOver(event);
                 break;
-            case "blast":
+            case "blasts":
                 this.onGameBlastEvent(event);
                 break;
-            case "fall":
-                this.onGameFallEvent(event);
+            case "moves":
+                this.onGameMoveEvent(event);
                 break;
-            case "appear":
-                this.onGameAppearEvent(event);
+            case "refills":
+                this.onGameRefillEvent(event);
                 break;
-            case 'burn':
+            case "appears":
+                this.onGameAppearsEvent(event);
+                break;
+            case "burns":
                 this.onGameBurnEvent(event);
+                break;
+            case "disappears":
+                this.onGameDisappearEvent(event);
                 break;
             case 'restart':
                 this.onGameRestart(event);
@@ -221,42 +240,46 @@ export default class GameManager extends cc.Component implements Game.GameListen
         if (this.game.isGameOver()) {
             this.restart();
         } else {
-            this.game.pick(tilePosition.x, tilePosition.y);
+            this.game.pickTile(tilePosition.x, tilePosition.y);
         }
     }
 
-    private onGameBlastEvent(event: Extract<Game.Event, { id: 'blast' }>) {
-        log('Game: blast', event);
-        this.setScore(event.score);
-        this.setMoves(event.movesLeft)
-        this.blastTiles(event.positions);
+    private onKeyClickEvent(event: KeyboardManager.ClickEvent) {
+        log('ClickEvent', event);
+        switch (event.hotKey) {
+            case KeyboardManager.KeyActions.UNDO:
+                this.game?.undo();
+                break;
+        }
     }
 
-    private onGameFallEvent(event: Extract<Game.Event, { id: 'fall'}>) {
-        log('Game: fall', event);
+    private onGameBlastEvent(event: Game.BlastEvent) {
+        this.blastTiles(event.blasts);
+    }
+
+    private onGameMoveEvent(event: Game.MoveEvent) {
         const tweens: cc.Tween[] = [];
-        for (const fall of event.falls) {
-            const tileNode = this.tiles?.getChildTile(fall[0].x, fall[0].y);
+        for (const move of event.moves) {
+            const tileNode = this.tiles?.getChildTile(move[0].x, move[0].y);
             if (!tileNode) {
-                throw new Error(`Can not find tile for {${fall[0].x}; ${fall[0].y}}`);
+                throw new Error(`Can not find tile for {${move[0].x}; ${move[0].y}}`);
             }
-            const fallTo = this.tiles?.getNodePosition(fall[1].x, fall[1].y);
-            if (!fallTo) {
-                throw new Error(`Unknown position for {${fall[1].x}; ${fall[1].y}}`);
+            const moveTo = this.tiles?.getNodePosition(move[1].x, move[1].y);
+            if (!moveTo) {
+                throw new Error(`Unknown position for {${move[1].x}; ${move[1].y}}`);
             }
-            const tween = tweenMove(tileNode, fallTo);
+            const tween = tweenMove(tileNode, moveTo);
             tweens.push(tween);
         }
         this.tiles?.queueTweens(...tweens);
     }
 
-    private onGameAppearEvent(event: Extract<Game.Event, { id: 'appear'}>) {
-        log('Game: appear', event);
+    private appearTilePositions(tilePositions: Game.TilePosition[]) {
         if (!this.tiles) {
             return;
         }
         const tweens: cc.Tween[] = [];
-        for (const aptile of event.tiles) {
+        for (const aptile of tilePositions) {
             const tileNode = this.tileFactory.getTile(aptile.tile);
             this.tiles.addTile(tileNode);
             const nodePos = this.tiles.getNodePosition(aptile.x, aptile.y);
@@ -267,15 +290,19 @@ export default class GameManager extends cc.Component implements Game.GameListen
         this.tiles.queueTweens(...tweens);
     }
 
-    private onGameBurnEvent(event: Extract<Game.Event, { id: 'burn' }>) {
-        log('Game: burn', event);
-        this.setScore(event.score);
-        this.setMoves(event.movesLeft)
-        this.blastTiles(event.burnPositions.concat(event.superTiles));
+    private onGameAppearsEvent(event: Game.AppearsEvent) {
+        this.appearTilePositions(event.appears);
     }
 
-    private onGameOver(event: Extract<Game.Event, { id: 'win' | 'lose' }>) {
-        log(`Game: ${event.id}`, event);
+    private onGameRefillEvent(event: Game.RefillEvent) {
+        this.appearTilePositions(event.refills);
+    }
+
+    private onGameBurnEvent(event: Game.BurnEvent) {
+        this.blastTiles(event.burns);
+    }
+
+    private onGameOver(event: Game.WinEvent | Game.LoseEvent) {
         const tweens: cc.Tween[] = [];
         this.tiles?.node.children.forEach(tileNode => {
             if (tileNode.getComponent(Tile) === null) {
@@ -295,7 +322,7 @@ export default class GameManager extends cc.Component implements Game.GameListen
         }
     }
 
-    private onGameRestart(event: Extract<Game.Event, { id: 'restart' }>) {
+    private onGameRestart(event: Game.Restart) {
         this.onRestart(
             event.config, 
             {
@@ -304,6 +331,30 @@ export default class GameManager extends cc.Component implements Game.GameListen
                 gameOverTitlesFadeOut: true,
             },
         );
+    }
+
+    private onGameDisappearEvent(event: Game.DisappearEvent) {
+        this.fadeOutPositions(event.disappears);
+    }
+
+    private fadeOutPositions(positions: Game.Position[]) {
+        if (!this.tiles) {
+            return;
+        }
+
+        const tweens: cc.Tween[] = [];
+        positions.forEach(position => {
+            const tileNode = this.tiles?.getChildTile(position.x, position.y);
+            if (!tileNode || tileNode.getComponent(Tile) === null) {
+                return;
+            }
+            const tween = tweenFadeOut(tileNode)
+                .call(() => {
+                    this.tileFactory.put(tileNode);
+                });
+            tweens.push(tween);
+        });
+        this.tiles?.queueTweens(...tweens);
     }
 
     private getSparks(): cc.ParticleSystem {

@@ -36,20 +36,19 @@ export namespace Game {
         x: number | 'e',
         y: number | 'e',
     };
-    type WinEvent = {
+    export type WinEvent = {
         id: 'win',
     };
-    type LoseEvent = {
+    export type LoseEvent = {
         id: 'lose',
     };
-    type BlastEvent = RenameProperties<Command.BlastResult, { type: 'id' }>;
-    type MoveEvent = RenameProperties<Command.MovesResult, { type: 'id' }>;
-    type RefillEvent = RenameProperties<Command.RefillsResult, { type: 'id' }>;
-    type AppearEvent = RenameProperties<Command.AppearResult, { type: 'id' }>;
-    type AppearsEvent = RenameProperties<Command.AppearsResult, { type: 'id' }>;
-    type BurnEvent = RenameProperties<Command.BurnsResult, { type: 'id' }>;
-    type DisappearEvent = RenameProperties<Command.DisappearsResult, { type: 'id' }>;
-    type Restart = {
+    export type BlastEvent = RenameProperties<Command.BlastResult, { type: 'id' }>;
+    export type MoveEvent = RenameProperties<Command.MovesResult, { type: 'id' }>;
+    export type RefillEvent = RenameProperties<Command.RefillsResult, { type: 'id' }>;
+    export type AppearsEvent = RenameProperties<Command.AppearsResult, { type: 'id' }>;
+    export type BurnEvent = RenameProperties<Command.BurnsResult, { type: 'id' }>;
+    export type DisappearEvent = RenameProperties<Command.DisappearsResult, { type: 'id' }>;
+    export type Restart = {
         id: 'restart',
         config: Game.Config,
     };
@@ -58,7 +57,6 @@ export namespace Game {
                       | BlastEvent 
                       | MoveEvent 
                       | RefillEvent 
-                      | AppearEvent
                       | AppearsEvent
                       | BurnEvent
                       | DisappearEvent
