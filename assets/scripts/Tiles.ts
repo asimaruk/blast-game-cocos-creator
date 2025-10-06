@@ -59,6 +59,9 @@ export class Tiles extends cc.Component {
     }
 
     queueTweens(...tweens: cc.Tween[]) {
+        if (tweens.length === 0) {
+            return;
+        }
         if (this.runningTweens.length > 0) {
             this.queuedTweens.push(tweens);
             return;

@@ -63,7 +63,6 @@ export class MoveCommand implements Command {
     do(game: Game): Command.Result {
         const moves = this.move(game, 0, 1);
         return this.toResult(moves);
-
     }
 
     undo(game: Game): Command.Result {
