@@ -10,8 +10,7 @@ export class Tiles extends cc.Component {
     private tempPos = cc.v2();
     private nodeLoc = cc.v2();
     private state = Tiles.State.IDLE;
-    private runningTweens: cc.Tween[] = [];
-    private queuedTweens: cc.Tween[][] = [];
+    private tweenAsyncQueue: Promise<void> = Promise.resolve();
 
     protected onLoad(): void {
         this.node.on(cc.Node.EventType.TOUCH_END, this.onClick, this);
@@ -41,9 +40,10 @@ export class Tiles extends cc.Component {
         this.node.addChild(tileNode);
     }
 
-    getChildTile(tileX: number, tileY: number): cc.Node | undefined {
+    async getChildTile(tileX: number, tileY: number): Promise<cc.Node> {
+        await this.tweenAsyncQueue;
         const nodePos = this.getNodePosition(tileX, tileY);
-        return this.node.children.filter(child => {
+        const tileNodes = this.node.children.filter(child => {
             if (child.getComponent(Tile) === null) {
                 return false;
             }
@@ -51,41 +51,31 @@ export class Tiles extends cc.Component {
             if (this.tempPos.subtract(nodePos).len() < this.blockSize / 2) {
                 return true;
             }
-        }).reverse()[0];
+        });
+        if (tileNodes.length !== 1) {
+            const state = tileNodes.length > 1 ? 'multiple' : 'no';
+            throw new Error(`Illegal state, ${state} tiles at {${tileX}, ${tileY}}`);
+        }
+        return tileNodes[0];
     }
 
     getAllChildTiles(): cc.Node[] {
         return this.node.children.filter(c => c.getComponent(Tile) !== null);
     }
 
-    queueTweens(...tweens: cc.Tween[]) {
-        if (tweens.length === 0) {
-            return;
+    queueTweens(...tweens: cc.Tween[]): Promise<void> {
+        if (tweens.length > 0) {
+            this.tweenAsyncQueue = this.tweenAsyncQueue.then(() => this.runTweens(tweens));
         }
-        if (this.runningTweens.length > 0) {
-            this.queuedTweens.push(tweens);
-            return;
-        }
-        this.runTweens(tweens);
+        return this.tweenAsyncQueue;
     } 
 
-    private runTweens(tweens: cc.Tween[]) {
+    private async runTweens(tweens: cc.Tween[]): Promise<void> {
         this.setState(Tiles.State.MOVING);
-        this.runningTweens.push(...tweens);
-        for (const tween of tweens) {
-            tween.call(() => {
-                const tweenIdx = this.runningTweens.indexOf(tween);
-                this.runningTweens.splice(tweenIdx, 1);
-                if (this.runningTweens.length === 0) {
-                    const nextTweens = this.queuedTweens.shift();
-                    if (nextTweens === undefined) {
-                        this.setState(Tiles.State.IDLE);
-                    } else {
-                        this.runTweens(nextTweens);
-                    }
-                }
-            }).start();
-        }
+        await Promise.all(tweens.map(tween => new Promise<void>((res, rej) => {
+            tween.call(() => res()).start()
+        })));
+        this.setState(Tiles.State.IDLE);
     }
 
     private onClick(event: cc.Event.EventTouch) {

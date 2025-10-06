@@ -6,7 +6,6 @@ import {
     TileFactory as GameTileFactory,
 } from "blast-core";
 import { Tiles } from "./Tiles";
-import { Tile } from "./Tile";
 import { error, log } from "./utils-log";
 import { 
     tweenScaleOut, 
@@ -46,6 +45,7 @@ export default class GameManager extends cc.Component implements Game.GameListen
     private game: Game | null = null;
     private sparksPool = new cc.NodePool();
     private tileFactory: TileFactory = null!;
+    private gameEventsAsyncQueue: Promise<void> = Promise.resolve();
 
     protected onLoad(): void {
         const extGameConfig = cc.game.config['gameConfig'];
@@ -120,33 +120,37 @@ export default class GameManager extends cc.Component implements Game.GameListen
 
     public onGameEvent(event: Game.Event) {
         log('Game Event: ', event);
+        this.gameEventsAsyncQueue = this.gameEventsAsyncQueue.then(() => this.onGameEventAsync(event));
+    }
+
+    private async onGameEventAsync(event: Game.Event): Promise<void> {
         this.setScore(this.game?.getScore() ?? 0);
         this.setMoves(this.game?.getMovesLeft() ?? 0);
         switch (event.id) {
             case "win":
             case "lose":
-                this.onGameOver(event);
+                await this.onGameOver(event);
                 break;
             case "blasts":
-                this.onGameBlastEvent(event);
+                await this.onGameBlastEvent(event);
                 break;
             case "moves":
-                this.onGameMoveEvent(event);
+                await this.onGameMoveEvent(event);
                 break;
             case "refills":
-                this.onGameRefillEvent(event);
+                await this.onGameRefillEvent(event);
                 break;
             case "appears":
-                this.onGameAppearsEvent(event);
+                await this.onGameAppearsEvent(event);
                 break;
             case "burns":
-                this.onGameBurnEvent(event);
+                await this.onGameBurnEvent(event);
                 break;
             case "disappears":
-                this.onGameDisappearEvent(event);
+                await this.onGameDisappearEvent(event);
                 break;
             case 'restart':
-                this.onGameRestart(event);
+                await this.onGameRestart(event);
                 break;
         }
     }
@@ -155,19 +159,19 @@ export default class GameManager extends cc.Component implements Game.GameListen
         this.game?.restart(config);
     }
 
-    private onRestart(
+    private async onRestart(
         config: Game.Config, 
         options?: {
             resizeTiles?: boolean,
             tilesFadeIn: boolean,
             gameOverTitlesFadeOut: boolean,
         },
-    ) {
+    ): Promise<void> {
         if (options?.resizeTiles ?? false) {
             this.resizeTiles(config.width, config.height);
         } 
         if (options?.tilesFadeIn) {
-            this.appearAllTiles();
+            await this.appearAllTiles();
         }
         this.setWinScore(config.winScore);
         this.setScore(0);
@@ -198,12 +202,15 @@ export default class GameManager extends cc.Component implements Game.GameListen
         }
     }
 
-    private appearAllTiles() {
+    private async appearAllTiles(): Promise<void> {
+        if (!this.tiles) {
+            return;
+        }
         const tweens: cc.Tween[] = [];
-        for (const t of this.tiles?.getAllChildTiles() ?? []) {
+        for (const t of this.tiles.getAllChildTiles() ?? []) {
             tweens.push(tweenFadeIn(t));
         }
-        this.tiles?.queueTweens(...tweens);
+        await this.tiles.queueTweens(...tweens);
     }
 
     private setWinScore(winScore: number) {
@@ -253,28 +260,29 @@ export default class GameManager extends cc.Component implements Game.GameListen
         }
     }
 
-    private onGameBlastEvent(event: Game.BlastEvent) {
-        this.blastTiles(event.blasts);
+    private onGameBlastEvent(event: Game.BlastEvent): Promise<void> {
+        return this.blastTiles(event.blasts);
     }
 
-    private onGameMoveEvent(event: Game.MoveEvent) {
+    private async onGameMoveEvent(event: Game.MoveEvent): Promise<void> {
+        if (!this.tiles) {
+            return;
+        }
+
         const tweens: cc.Tween[] = [];
         for (const move of event.moves) {
-            const tileNode = this.tiles?.getChildTile(move[0].x, move[0].y);
-            if (!tileNode) {
-                throw new Error(`Can not find tile for {${move[0].x}; ${move[0].y}}`);
-            }
-            const moveTo = this.tiles?.getNodePosition(move[1].x, move[1].y);
+            const tileNode = await this.tiles.getChildTile(move[0].x, move[0].y);
+            const moveTo = this.tiles.getNodePosition(move[1].x, move[1].y);
             if (!moveTo) {
                 throw new Error(`Unknown position for {${move[1].x}; ${move[1].y}}`);
             }
             const tween = tweenMove(tileNode, moveTo);
             tweens.push(tween);
         }
-        this.tiles?.queueTweens(...tweens);
+        await this.tiles.queueTweens(...tweens);
     }
 
-    private appearTilePositions(tilePositions: Game.TilePosition[]) {
+    private async appearTilePositions(tilePositions: Game.TilePosition[]): Promise<void> {
         if (!this.tiles) {
             return;
         }
@@ -287,34 +295,34 @@ export default class GameManager extends cc.Component implements Game.GameListen
             const tween = tweenScaleOut(tileNode);
             tweens.push(tween);
         }
-        this.tiles.queueTweens(...tweens);
+        await this.tiles.queueTweens(...tweens);
     }
 
-    private onGameAppearsEvent(event: Game.AppearsEvent) {
-        this.appearTilePositions(event.appears);
+    private onGameAppearsEvent(event: Game.AppearsEvent): Promise<void> {
+        return this.appearTilePositions(event.appears);
     }
 
-    private onGameRefillEvent(event: Game.RefillEvent) {
-        this.appearTilePositions(event.refills);
+    private onGameRefillEvent(event: Game.RefillEvent): Promise<void> {
+        return this.appearTilePositions(event.refills);
     }
 
-    private onGameBurnEvent(event: Game.BurnEvent) {
-        this.blastTiles(event.burns);
+    private onGameBurnEvent(event: Game.BurnEvent): Promise<void> {
+        return this.blastTiles(event.burns);
     }
 
-    private onGameOver(event: Game.WinEvent | Game.LoseEvent) {
+    private async onGameOver(event: Game.WinEvent | Game.LoseEvent): Promise<void> {
+        if (!this.tiles) {
+            return;
+        }
         const tweens: cc.Tween[] = [];
-        this.tiles?.node.children.forEach(tileNode => {
-            if (tileNode.getComponent(Tile) === null) {
-                return;
-            }
+        this.tiles.getAllChildTiles().forEach(tileNode => {
             const tween = tweenFadeOut(tileNode)
                 .call(() => {
                     this.tileFactory.put(tileNode);
                 });
             tweens.push(tween);
         });
-        this.tiles?.queueTweens(...tweens);
+        await this.tiles.queueTweens(...tweens);
         const titleNode = event.id === 'win' ? this.winTitle : this.loseTitle;
         if (titleNode) {
             titleNode.active = true;
@@ -322,8 +330,8 @@ export default class GameManager extends cc.Component implements Game.GameListen
         }
     }
 
-    private onGameRestart(event: Game.Restart) {
-        this.onRestart(
+    private onGameRestart(event: Game.Restart): Promise<void> {
+        return this.onRestart(
             event.config, 
             {
                 resizeTiles: true,
@@ -333,28 +341,26 @@ export default class GameManager extends cc.Component implements Game.GameListen
         );
     }
 
-    private onGameDisappearEvent(event: Game.DisappearEvent) {
-        this.fadeOutPositions(event.disappears);
+    private onGameDisappearEvent(event: Game.DisappearEvent): Promise<void> {
+        return this.fadeOutPositions(event.disappears);
     }
 
-    private fadeOutPositions(positions: Game.Position[]) {
-        if (!this.tiles) {
+    private async fadeOutPositions(positions: Game.Position[]): Promise<void> {
+        const tiles = this.tiles;
+        if (!tiles) {
             return;
         }
 
         const tweens: cc.Tween[] = [];
-        positions.forEach(position => {
-            const tileNode = this.tiles?.getChildTile(position.x, position.y);
-            if (!tileNode || tileNode.getComponent(Tile) === null) {
-                return;
-            }
+        const tileNodes = await Promise.all(positions.map(p => tiles.getChildTile(p.x, p.y)));
+        tileNodes.forEach(tileNode => {
             const tween = tweenFadeOut(tileNode)
                 .call(() => {
                     this.tileFactory.put(tileNode);
                 });
             tweens.push(tween);
         });
-        this.tiles?.queueTweens(...tweens);
+        await tiles.queueTweens(...tweens);
     }
 
     private getSparks(): cc.ParticleSystem {
@@ -383,19 +389,23 @@ export default class GameManager extends cc.Component implements Game.GameListen
         }
     }
 
-    private blastTiles(tilelPositions: Game.Position[]) {
-        const blastTiles = tilelPositions.map(p => this.tiles?.getChildTile(p.x, p.y)).filter(t => t !== undefined);
+    private async blastTiles(tilelPositions: Game.Position[]): Promise<void> {
+        const tiles = this.tiles;
+        if (!tiles) {
+            return;
+        }
+        const blastTiles = await Promise.all(tilelPositions.map(p => tiles.getChildTile(p.x, p.y)));
         const tweens: cc.Tween[] = [];
         for (const t of blastTiles) {
             const tween = tweenTileBlast(
                 t, 
                 () => {
                     const sparks = this.getSparks();
-                    this.tiles?.node.addChild(sparks.node);
+                    tiles.node.addChild(sparks.node);
                     sparks.node.setPosition(t.position);
                     sparks.scheduleOnce(
                         () => {
-                            this.tiles?.node.removeChild(sparks.node);
+                            tiles.node.removeChild(sparks.node);
                             this.sparksPool.put(sparks.node);
                         },
                         sparks.duration + sparks.life + sparks.lifeVar,
@@ -407,6 +417,6 @@ export default class GameManager extends cc.Component implements Game.GameListen
             });
             tweens.push(tween);
         }
-        this.tiles?.queueTweens(...tweens);
+        await tiles.queueTweens(...tweens);
     }
 }
