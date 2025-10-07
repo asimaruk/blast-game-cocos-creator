@@ -22,6 +22,8 @@ import {
 import TileFactory from "./TileFactory";
 import { KeyboardManager } from "./KeyboardManager";
 
+type GameEventHandlers = {[key in Game.Event['id']]: (event: Extract<Game.Event, { id: key }>) => Promise<void>};
+
 @ccclass
 @requireComponent(TileFactory)
 @requireComponent(KeyboardManager)
@@ -46,6 +48,17 @@ export default class GameManager extends cc.Component implements Game.GameListen
     private sparksPool = new cc.NodePool();
     private tileFactory: TileFactory = null!;
     private gameEventsAsyncQueue: Promise<void> = Promise.resolve();
+    private gameEventHandlers: GameEventHandlers = {
+        'appears': (event) => this.onGameAppearsEvent(event),
+        'blasts': (event) => this.onGameBlastsEvent(event),
+        'burns': (event) => this.onGameBurnsEvent(event),
+        'disappears': (event) => this.onGameDisappearsEvent(event),
+        'lose': (event) => this.onGameOverEvent(event),
+        'moves': (event) => this.onGameMovesEvent(event),
+        'refills': (event) => this.onGameRefillsEvent(event),
+        'restart': (event) => this.onGameRestartEvent(event),
+        'win': (event) => this.onGameOverEvent(event),
+    };
 
     protected onLoad(): void {
         const extGameConfig = cc.game.config['gameConfig'];
@@ -126,33 +139,15 @@ export default class GameManager extends cc.Component implements Game.GameListen
     private async onGameEventAsync(event: Game.Event): Promise<void> {
         this.setScore(this.game?.getScore() ?? 0);
         this.setMoves(this.game?.getMovesLeft() ?? 0);
-        switch (event.id) {
-            case "win":
-            case "lose":
-                await this.onGameOver(event);
-                break;
-            case "blasts":
-                await this.onGameBlastEvent(event);
-                break;
-            case "moves":
-                await this.onGameMoveEvent(event);
-                break;
-            case "refills":
-                await this.onGameRefillEvent(event);
-                break;
-            case "appears":
-                await this.onGameAppearsEvent(event);
-                break;
-            case "burns":
-                await this.onGameBurnEvent(event);
-                break;
-            case "disappears":
-                await this.onGameDisappearEvent(event);
-                break;
-            case 'restart':
-                await this.onGameRestart(event);
-                break;
-        }
+        await this.handleEventByType(event.id, event);
+    }
+
+    private async handleEventByType<K extends Game.Event['id']>(
+        type: K,
+        event: Extract<Game.Event, { id: K }>
+    ): Promise<void> {
+        const handler = this.gameEventHandlers[type];
+        await handler(event);
     }
 
     private restart(config?: Game.Config) {
@@ -260,11 +255,11 @@ export default class GameManager extends cc.Component implements Game.GameListen
         }
     }
 
-    private onGameBlastEvent(event: Game.BlastEvent): Promise<void> {
+    private onGameBlastsEvent(event: Game.BlastEvent): Promise<void> {
         return this.blastTiles(event.blasts);
     }
 
-    private async onGameMoveEvent(event: Game.MoveEvent): Promise<void> {
+    private async onGameMovesEvent(event: Game.MoveEvent): Promise<void> {
         if (!this.tiles) {
             return;
         }
@@ -302,15 +297,15 @@ export default class GameManager extends cc.Component implements Game.GameListen
         return this.appearTilePositions(event.appears);
     }
 
-    private onGameRefillEvent(event: Game.RefillEvent): Promise<void> {
+    private onGameRefillsEvent(event: Game.RefillEvent): Promise<void> {
         return this.appearTilePositions(event.refills);
     }
 
-    private onGameBurnEvent(event: Game.BurnEvent): Promise<void> {
+    private onGameBurnsEvent(event: Game.BurnEvent): Promise<void> {
         return this.blastTiles(event.burns);
     }
 
-    private async onGameOver(event: Game.WinEvent | Game.LoseEvent): Promise<void> {
+    private async onGameOverEvent(event: Game.WinEvent | Game.LoseEvent): Promise<void> {
         if (!this.tiles) {
             return;
         }
@@ -330,7 +325,7 @@ export default class GameManager extends cc.Component implements Game.GameListen
         }
     }
 
-    private onGameRestart(event: Game.Restart): Promise<void> {
+    private onGameRestartEvent(event: Game.Restart): Promise<void> {
         return this.onRestart(
             event.config, 
             {
@@ -341,7 +336,7 @@ export default class GameManager extends cc.Component implements Game.GameListen
         );
     }
 
-    private onGameDisappearEvent(event: Game.DisappearEvent): Promise<void> {
+    private onGameDisappearsEvent(event: Game.DisappearEvent): Promise<void> {
         return this.fadeOutPositions(event.disappears);
     }
 
