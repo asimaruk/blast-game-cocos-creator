@@ -35,8 +35,6 @@ export default class GameManager extends cc.Component implements Game.GameListen
     score: cc.Label | null = null;
     @property(cc.Label)
     winScore: cc.Label | null = null;
-    @property(Tiles)
-    tiles: Tiles | null = null;
     @property(cc.Prefab)
     sparksPrefab: cc.Prefab | null = null;
     @property(cc.Node)
@@ -44,6 +42,8 @@ export default class GameManager extends cc.Component implements Game.GameListen
     @property(cc.Node)
     loseTitle: cc.Node | null = null;
 
+    private tiles: Tiles | null = null;
+    private vfxEffects: cc.Node | null = null;
     private game: Game | null = null;
     private sparksPool = new cc.NodePool();
     private tileFactory: TileFactory = null!;
@@ -82,6 +82,11 @@ export default class GameManager extends cc.Component implements Game.GameListen
             commandFactory,
         );
         this.game.addGameListener(this);
+        this.tiles = cc.director.getScene().getComponentInChildren(Tiles);
+        if (this.tiles) {
+            this.vfxEffects = new cc.Node();
+            this.vfxEffects.setParent(this.tiles.node.parent);
+        }
         this.tiles?.node.on(Tiles.EventType.TILES_CLICK, this.onTilesClick, this);
         this.node.on(KeyboardManager.EventType.CLICK_EVENT, this.onKeyClickEvent, this);
         this.onLoadAsync(config);
@@ -392,21 +397,22 @@ export default class GameManager extends cc.Component implements Game.GameListen
         const blastTiles = await Promise.all(tilelPositions.map(p => tiles.getChildTile(p.x, p.y)));
         const tweens: cc.Tween[] = [];
         for (const t of blastTiles) {
+            const sparks = this.getSparks();
             const tween = tweenTileBlast(
                 t, 
                 () => {
-                    const sparks = this.getSparks();
-                    tiles.node.addChild(sparks.node);
+                    this.vfxEffects?.addChild(sparks.node);
                     sparks.node.setPosition(t.position);
                     sparks.scheduleOnce(
                         () => {
-                            tiles.node.removeChild(sparks.node);
+                            this.vfxEffects?.removeChild(sparks.node);
                             this.sparksPool.put(sparks.node);
                         },
                         sparks.duration + sparks.life + sparks.lifeVar,
                     );
                 }
             )
+            .delay(sparks.duration)
             .call(() => {
                 this.tileFactory.put(t);
             });
